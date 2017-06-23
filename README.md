@@ -13,6 +13,10 @@ This is a shiny app to view and download historical streamflow data from a downl
 - A .csv file of a list of all hydrometric stations to include in the viewer
 - A hydat.sqlite file in the same folder as the R script files
 
+**Using**
+
+- Open app.R file in R or RStudio and run the app.
+
 
 ### License
 
