@@ -1,0 +1,319 @@
+# Copyright 2017 Province of British Columbia
+# 
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+# 
+# http://www.apache.org/licenses/LICENSE-2.0
+# 
+# Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and limitations under the License.
+
+
+
+
+# This code utilizes the HYDAT R package (D. Hutchinson (ECCC), https://github.com/CentreForHydrology/HYDAT) to extract data from the HYDAT database
+
+
+
+#####  Set File Pathways #####
+
+### Set path to HYDAT
+HYDAT.path <- "Hydat.sqlite3" 
+
+#read the file and select the peak period  
+stations.list.csv <- read.csv("BC_Q_stations.csv", header = TRUE, stringsAsFactors = FALSE)
+
+#########################
+
+
+
+
+
+
+
+### Shiny App Script ###
+########################
+
+library(shiny)
+library(shinythemes)
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(HYDAT)
+library(RSQLite)
+
+stations.list <- as.list(stations.list.csv$station_number)
+
+
+
+# Set up the user-interface
+ui <- fluidPage(
+  theme = shinytheme("spacelab"),#simplex
+  #themeSelector(),
+  titlePanel("HYDAT Discharge Data Viewer"),
+  sidebarLayout(
+    sidebarPanel(
+      h5("This app extracts hydrometric discharge data from the HYDAT database and displays station metadata, historical data, and real-time data, if available."),
+      h5("This app requires a locally saved SQLite HYDAT database file and CSV file with list of stations to select from (locations written in code)."),
+      br(),
+      uiOutput("stnSelect"),
+      br(),
+      helpText("Shiny app developed by J. Goetz (BC ENV 2017).")
+    ),
+    mainPanel(
+      tabsetPanel(
+        tabPanel("Station Info",
+                 br(),
+                 h4("Station Information"),
+                 tableOutput("metaTable")),
+        tabPanel("Historical Data",
+                 br(),
+                 column(6, uiOutput("dateRange")),
+                 column(3, checkboxInput("log", label = "Plot Discharge axis on log scale", value= FALSE)),
+                 column(3, downloadButton('downloadData', 'Download Data'),
+                        downloadButton('downloadPlot', 'Download Plot')),
+                 column(11, br()),
+                 plotOutput('plot')),
+        #tableOutput("summaryData")),
+        tabPanel("Real-time Data",
+                 br(),
+                 column(6, textOutput("noRT"), uiOutput("dateRangeRT")),
+                 column(3, checkboxInput("logRT", label = "Plot Discharge axis on log scale", value= FALSE)),
+                 column(3, downloadButton('downloadRTData', 'Download Data'),
+                        downloadButton('downloadRTPlot', 'Download Plot')),
+                 column(11, br()),
+                 plotOutput('rtplot')),
+        tabPanel("Station Listings",
+                 br(),
+                 dataTableOutput("allstationsTable")
+        )
+      )
+    )
+  )
+)
+
+######################################################################################################
+######################################################################################################
+
+# Set up the server (where all the magic happens)
+server <- function(input, output) {
+  
+  ### Select station ###
+  ######################
+  output$stnSelect <- renderUI({
+    selectizeInput("station", label = "Select or type your hydrometric station ID number:",choices = stations.list,options = list(placeholder ="type station ID number",maxOptions = 2420 ))
+  })
+  
+  ### MetaData ###
+  ################
+  
+  # Extract station metadata from HYDAT
+  metaData <- reactive({
+    db.con <- dbConnect(RSQLite::SQLite(), HYDAT.path)
+    stn.meta.HYDAT <- StationMetadata(con = db.con, station_number=input$station)#input$station)##"08HB048"
+    stn.reg.HYDAT <- StationRegulation(con = db.con, station_number=input$station)#input$station)#input$station)#"08HB048"
+    dbDisconnect(db.con)
+    
+    stn.info <- merge(stn.meta.HYDAT,stn.reg.HYDAT[,c(1,4)], by= "station_number") %>% select(-sed_status,-drainage_area_effect) %>% 
+      rename("Station Number"=station_number,"Station Name" =station_name,"Prov/Terr/State"=prov_terr_state_loc,"Station Status"=hyd_status,
+             "Latitude"=latitude,"Longitude"=longitude,"Drainage Area (sq km)"=drainage_area_gross,"Reference (RHBN)"=rhbn,"Real-Time"=real_time,
+             "Regional Office"=regional_office,"Contributor"=contributor,"Operator"=operator,"Datum"=datum,"Regulated"=regulated)%>% 
+      gather("header","content",1:14)
+  })
+  
+  # Rander table for output
+  output$metaTable <- renderTable(metaData(),colnames = FALSE)
+  
+  
+  ### Historial Data ###
+  ######################
+  
+  # Extract historical data from HYDAT and determine the start and end dates for clipping
+  histDates <- reactive({
+    db.con <- dbConnect(RSQLite::SQLite(), HYDAT.path)
+    daily.flow.HYDAT <- DailyHydrometricData(con = db.con, get_flow = TRUE, station_number=input$station)#"08HB048")
+    dbDisconnect(db.con)
+    
+    daily.flow.dates <- daily.flow.HYDAT[,c(2,3)] %>% 
+      summarize(minDate=min(date),
+                maxDate=max(date))
+  })
+  
+  # Extract historical data from HYDAT, fill in missing days, and clip to dates
+  histData <- reactive({
+    
+    db.con <- dbConnect(RSQLite::SQLite(), HYDAT.path)
+    daily.flow.HYDAT <- DailyHydrometricData(con = db.con, get_flow = TRUE, station_number=input$station)#"08HB048")
+    dbDisconnect(db.con)
+    
+    flow.data <- daily.flow.HYDAT[,c(2,3)]
+    colnames(flow.data) <- c("Date", "Discharge")
+    
+    min.date <- as.Date((paste((as.numeric(format(min(flow.data$Date),'%Y'))),01,01,sep="-")),"%Y-%m-%d")
+    max.date <- as.Date((paste((as.numeric(format(max(flow.data$Date),'%Y'))),12,31,sep="-")),"%Y-%m-%d")
+    flow.data.empty <- data.frame(Date=seq(min.date, max.date, by="days"))
+    flow.data <- merge(flow.data.empty,flow.data,by="Date",all = TRUE)
+    
+    flow.data= flow.data[flow.data$Date  >=input$date.range[1] & flow.data$Date <= input$date.range[2],]
+  })
+  
+  # Create ggplot function
+  plotInput <- function(){
+    validate(
+      need(histData(),"NOT AVAILABLE")
+    )
+    full.record.plot <- ggplot(data=histData(), aes_string(x=histData()$Date, y=histData()$Discharge))+
+      ggtitle(paste0("DAILY DISCHARGE - ",metaData()[2,2]," (",metaData()[1,2],")"))+
+      theme(plot.title = element_text(hjust = 0.5))+
+      geom_line(colour="dodgerblue4")+
+      {if(input$log)scale_y_log10()}+
+      ylab("Discharge (cms)")+
+      xlab("Date")+
+      theme(axis.title = element_text(size=15),
+            plot.title = element_text(size=15,hjust = 0.5),
+            axis.text = element_text(size=13))
+    
+    print(full.record.plot)
+  }
+  
+  # Render ggplot for output
+  output$plot <- renderPlot({
+    plotInput()
+  })
+  
+  #histsumData <- reactive({
+  #  db.con <- dbConnect(RSQLite::SQLite(), HYDAT.path)
+  #  annual.HYDAT <- AnnualHydrometricData(con = db.con,get_flow = TRUE,station_number = input$station)
+  #  monthly.HYDAT <- MonthlyHydrometricData(con = db.con,get_flow = TRUE,station_number =  input$station)
+  #  dbDisconnect(db.con)
+  #  
+  #  monthly <- monthly.HYDAT[,c(1:4)] %>% spread(month,monthly_mean)
+  #  historical.summary <- merge(annual.HYDAT[,c(2:3)],monthly[,c(2:14)],by=c("year"), all=TRUE)
+  #  colnames(historical.summary) <- c("Year","Annual Mean","Jan Mean","Feb Mean","Mar Mean","Apr Mean","May Mean","Jun Mean",
+  #                                    "Jul Mean","Aug Mean","Sep Mean","Oct Mean","Nov Mean","Dec Mean")
+  #  historical.summary[,c(2:14)] <- round(historical.summary[,c(2:14)],3)
+  #  historical.summary
+  #})
+  #  
+  #  output$summaryData <- renderTable(histsumData())
+  
+  
+  
+  ### Real-Time Data ###
+  ######################
+  
+  # Extract historical data from HYDAT and determine the start and end dates for clipping
+  realtimeDates <- reactive({
+    realtime.HYDAT <- RealTimeData(prov_terr_loc=metaData()[3,2], station_number=input$station)#input$station)#input$station)##"08HB048"
+    real.timeDates <- as.data.frame(realtime.HYDAT[,2])
+    colnames(real.timeDates) <- "DateTime"
+    real.timeDates$Date <- as.Date(real.timeDates$DateTime,"%Y-%m-%d")
+    
+    real.timeDates <- real.timeDates %>% 
+      summarize(minDate=min(Date),
+                maxDate=max(Date))
+  })
+  
+  # Extract real-time data from webslink and clip to dates
+  realtimeData <- reactive({
+    realtime.HYDAT <- RealTimeData(prov_terr_loc=metaData()[3,2], station_number=input$station)#input$station)##"08HB048"
+    real.time <- realtime.HYDAT[,c(2,3,7)]
+    colnames(real.time) <- c("DateTime","WL","Discharge")
+    real.time$Date <- as.Date(real.time$DateTime,"%Y-%m-%d")
+    real.time <- as.data.frame(real.time[,c(4,1:3)])
+    
+    real.time= real.time[real.time$Date  >=input$date.rangeRT[1] & real.time$Date <= input$date.rangeRT[2],]
+  })
+  
+  # Create ggplot function
+  realtimePlot <- function(){
+    real.time.plot <- ggplot(data=realtimeData(), aes_string(x="DateTime"))+
+      #geom_line(aes(y=WL),colour="red")+
+      geom_line(aes(y=Discharge),colour="dodgerblue4")+
+      ggtitle(paste0("REAL-TIME DISCHARGE - ",metaData()[2,2]))+
+      theme(plot.title = element_text(hjust = 0.5))+
+      {if(input$logRT)scale_y_log10()}+
+      ylab("Instantaneous Discharge (cms)")+
+      xlab("Date")+
+      theme(axis.title = element_text(size=15),
+            plot.title = element_text(size=15,hjust = 0.5),
+            axis.text = element_text(size=13))
+    #scale_y_continuous(sec.axis = sec_axis(~.*5, name = "Relative humidity [%]"))
+    
+    real.time.plot
+  }
+  
+  # Render ggplot for output (if not real time, dont plot)
+  output$rtplot <- renderPlot({
+    if(metaData()[9,2]) realtimePlot()
+  })
+  
+  
+  ### Reactive Widgets ###
+  ########################
+  
+  # Structure to download historical CSV file, only works if opened in browser
+  output$downloadData <- downloadHandler(
+    filename = function() {paste0(metaData()[1,2]," - daily discharge.csv")},
+    content = function(file) {
+      write.csv(histData(),file, row.names = FALSE)
+    })  
+  
+  # Structure to download historical plot, only works if opened in browser
+  output$downloadPlot <- downloadHandler(
+    filename = function() {paste0(metaData()[1,2]," - daily discharge.png")},
+    content = function(file) {
+      png(file, width = 900, height=500)
+      print(plotInput())
+      dev.off()
+    })    
+  
+  # Structure to download real-time CSV file, only works if opened in browser
+  output$downloadRTData <- downloadHandler(
+    filename = function() {paste0(metaData()[1,2]," - real-time discharge.csv")},
+    content = function(file) {
+      write.csv(realtimeData(),file, row.names = FALSE)
+    })  
+  
+  # Structure to download real-time plot, only works if opened in browser
+  output$downloadRTPlot <- downloadHandler(
+    filename = function() {paste0(metaData()[1,2]," - real-time discharge.png")},
+    content = function(file) {
+      png(file, width = 900, height=500)
+      print(realtimePlot())
+      dev.off()
+    })    
+  
+  # Structure to set historical dates input to match start and ends of data
+  output$dateRange <- renderUI({
+    dateRangeInput("date.range","Select start and end dates to plot:",format = "yyyy-mm-dd",startview = "month",start = histDates()$minDate, end = histDates()$maxDate)
+  })
+  
+  # Structure to set real-time dates input to match start and ends of data (remove if no real-time data)
+  output$dateRangeRT <- renderUI({
+    {if(metaData()[9,2]) dateRangeInput("date.rangeRT","Select start and end dates to plot:",format = "yyyy-mm-dd",startview = "month",start = realtimeDates()$minDate, end = realtimeDates()$maxDate)}
+  })
+  
+  # Place text in real-time sidepanel section if no real-time data
+  output$noRT <- renderText({
+    {if(metaData()[9,2]==FALSE) paste("*** No real-time data available for this station. No data or plot available to view or download. ***")}
+  })
+  
+  output$allstationsTable <- renderDataTable({
+    db.con <- dbConnect(RSQLite::SQLite(), HYDAT.path)
+    stn.meta.HYDAT <- StationMetadata(con = db.con, station_number=stations.list)
+    stn.reg.HYDAT <- StationRegulation(con = db.con, station_number=stations.list)
+    dbDisconnect(db.con)
+    
+    stn.info <- merge(stn.meta.HYDAT[,c(1:4,8,10,11)],stn.reg.HYDAT[,c(1,4)], by= "station_number") %>% 
+      rename("Station Number"=station_number,"Station Name" =station_name,"Prov/ Terr/ State"=prov_terr_state_loc,"Station Status"=hyd_status,
+             "Drainage Area (sq km)"=drainage_area_gross,"Reference (RHBN)"=rhbn,"Real-Time"=real_time,
+             "Regulated"=regulated)
+  }) 
+  
+}
+
+
+shinyApp(ui = ui, server = server)
