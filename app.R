@@ -15,6 +15,17 @@
 
 # This code utilizes the HYDAT R package (D. Hutchinson (ECCC), https://github.com/CentreForHydrology/HYDAT) to extract data from the HYDAT database
 
+### Shiny App Script ###
+########################
+
+library(shiny)
+library(shinythemes)
+library(ggplot2)
+library(dplyr) ## >0.7.0 dplyr
+library(tidyr)
+library(HYDAT)
+library(RSQLite)
+library(DBI)
 
 
 #####  Set File Pathways #####
@@ -22,29 +33,24 @@
 ### Set path to HYDAT
 HYDAT.path <- "Hydat.sqlite3" 
 
+## Read in database
+hydat_con <- dbConnect(SQLite(), HYDAT.path)
+
+## Create a list of active stations in BC
+bcstations <- tbl(hydat_con, "STATIONS") %>%
+  filter(HYD_STATUS=="A") %>%
+  filter(PROV_TERR_STATE_LOC=="BC") %>%
+  collect() %>%
+  pull(STATION_NUMBER)
+
+dbDisconnect(hydat_con)
+
 #read the file and select the peak period  
-stations.list.csv <- read.csv("BC_Q_stations.csv", header = TRUE, stringsAsFactors = FALSE)
+#stations.list.csv <- read.csv("BC_Q_stations.csv", header = TRUE, stringsAsFactors = FALSE)
 
 #########################
 
-
-
-
-
-
-
-### Shiny App Script ###
-########################
-
-library(shiny)
-library(shinythemes)
-library(ggplot2)
-library(dplyr)
-library(tidyr)
-library(HYDAT)
-library(RSQLite)
-
-stations.list <- as.list(stations.list.csv$station_number)
+stations.list <- as.list(bcstations)
 
 
 
