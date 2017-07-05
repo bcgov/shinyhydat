@@ -11,3 +11,4 @@
 
 # Make sure HYDAT itself isn't committed.
 *.sqlite3
+.Rproj.user
