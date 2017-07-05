@@ -18,8 +18,7 @@
 ### Shiny App Script ###
 ########################
 
-library(shiny)
-library(shinythemes)
+library(shinydashboard)
 library(ggplot2)
 library(dplyr) ## >0.7.0 dplyr
 library(tidyr)
@@ -55,50 +54,50 @@ stations.list <- as.list(bcstations)
 
 
 # Set up the user-interface
-ui <- fluidPage(
-  theme = shinytheme("spacelab"),#simplex
-  #themeSelector(),
-  titlePanel("HYDAT Discharge Data Viewer"),
-  sidebarLayout(
-    sidebarPanel(
-      h5("This app extracts hydrometric discharge data from the HYDAT database and displays station metadata, historical data, and real-time data, if available."),
-      h5("This app requires a locally saved SQLite HYDAT database file and CSV file with list of stations to select from (locations written in code)."),
-      br(),
-      uiOutput("stnSelect"),
-      br(),
-      helpText("Shiny app developed by J. Goetz (BC ENV 2017).")
-    ),
-    mainPanel(
-      tabsetPanel(
-        tabPanel("Station Info",
-                 br(),
-                 h4("Station Information"),
-                 tableOutput("metaTable")),
-        tabPanel("Historical Data",
-                 br(),
-                 column(6, uiOutput("dateRange")),
-                 column(3, checkboxInput("log", label = "Plot Discharge axis on log scale", value= FALSE)),
-                 column(3, downloadButton('downloadData', 'Download Data'),
-                        downloadButton('downloadPlot', 'Download Plot')),
-                 column(11, br()),
-                 plotOutput('plot')),
-        #tableOutput("summaryData")),
-        tabPanel("Real-time Data",
-                 br(),
-                 column(6, textOutput("noRT"), uiOutput("dateRangeRT")),
-                 column(3, checkboxInput("logRT", label = "Plot Discharge axis on log scale", value= FALSE)),
-                 column(3, downloadButton('downloadRTData', 'Download Data'),
-                        downloadButton('downloadRTPlot', 'Download Plot')),
-                 column(11, br()),
-                 plotOutput('rtplot')),
-        tabPanel("Station Listings",
-                 br(),
-                 dataTableOutput("allstationsTable")
-        )
-      )
+ui <- dashboardPage(
+  dashboardHeader(title="HYDAT Data Viewer"),
+  dashboardSidebar(
+    br(),
+    uiOutput("stnSelect"),
+    br(),
+    hr(),
+    h5("This app extracts hydrometric discharge data from the HYDAT database and displays station metadata, historical data, and real-time data, if available. A locally saved SQLite HYDAT database file is required."),
+    br()
+  ),
+  dashboardBody(
+    tabBox("TITLE",width = 12,
+           tabPanel("Station Info",
+                    br(),
+                    h4("Station Information"),
+                    tableOutput("metaTable")),
+           tabPanel("Historical Data",
+                    br(),
+                    column(6, uiOutput("dateRange")),
+                    column(3, checkboxInput("log", label = "Plot Discharge axis on log scale", value= FALSE)),
+                    column(3, downloadButton('downloadData', 'Download Data'),
+                           downloadButton('downloadPlot', 'Download Plot')),
+                    column(11, br()),
+                    plotOutput('plot')),
+           tabPanel("Real-time Data",
+                    br(),
+                    column(6, textOutput("noRT"), uiOutput("dateRangeRT")),
+                    column(3, checkboxInput("logRT", label = "Plot Discharge axis on log scale", value= FALSE)),
+                    column(3, downloadButton('downloadRTData', 'Download Data'),
+                           downloadButton('downloadRTPlot', 'Download Plot')),
+                    column(11, br()),
+                    plotOutput('rtplot')),
+           tabPanel("Map Search",
+                    br(),
+                    h3("COMING SOON")),
+           tabPanel("Station Search",
+                    br(),
+                    dataTableOutput("allstationsTable")
+                    
+           )
     )
   )
 )
+
 
 ######################################################################################################
 ######################################################################################################
@@ -188,22 +187,6 @@ server <- function(input, output) {
   output$plot <- renderPlot({
     plotInput()
   })
-  
-  #histsumData <- reactive({
-  #  db.con <- dbConnect(RSQLite::SQLite(), HYDAT.path)
-  #  annual.HYDAT <- AnnualHydrometricData(con = db.con,get_flow = TRUE,station_number = input$station)
-  #  monthly.HYDAT <- MonthlyHydrometricData(con = db.con,get_flow = TRUE,station_number =  input$station)
-  #  dbDisconnect(db.con)
-  #  
-  #  monthly <- monthly.HYDAT[,c(1:4)] %>% spread(month,monthly_mean)
-  #  historical.summary <- merge(annual.HYDAT[,c(2:3)],monthly[,c(2:14)],by=c("year"), all=TRUE)
-  #  colnames(historical.summary) <- c("Year","Annual Mean","Jan Mean","Feb Mean","Mar Mean","Apr Mean","May Mean","Jun Mean",
-  #                                    "Jul Mean","Aug Mean","Sep Mean","Oct Mean","Nov Mean","Dec Mean")
-  #  historical.summary[,c(2:14)] <- round(historical.summary[,c(2:14)],3)
-  #  historical.summary
-  #})
-  #  
-  #  output$summaryData <- renderTable(histsumData())
   
   
   
