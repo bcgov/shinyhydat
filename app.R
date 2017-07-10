@@ -24,6 +24,7 @@ library(dplyr) ## >0.7.0 dplyr
 library(tidyr)
 library(HYDAT)
 library(RSQLite)
+library(leaflet)
 library(DBI)
 
 
@@ -39,8 +40,7 @@ hydat_con <- dbConnect(SQLite(), HYDAT.path)
 bcstations <- tbl(hydat_con, "STATIONS") %>%
   filter(HYD_STATUS=="A") %>%
   filter(PROV_TERR_STATE_LOC=="BC") %>%
-  collect() %>%
-  pull(STATION_NUMBER)
+  collect() 
 
 dbDisconnect(hydat_con)
 
@@ -49,7 +49,7 @@ dbDisconnect(hydat_con)
 
 #########################
 
-stations.list <- as.list(bcstations)
+stations.list <- as.list(bcstations$STATION_NUMBER)
 
 
 
@@ -88,7 +88,7 @@ ui <- dashboardPage(
                     plotOutput('rtplot')),
            tabPanel("Map Search",
                     br(),
-                    h3("COMING SOON")),
+                    leafletOutput("map")),
            tabPanel("Station Search",
                     br(),
                     dataTableOutput("allstationsTable")
@@ -121,10 +121,11 @@ server <- function(input, output) {
     stn.reg.HYDAT <- StationRegulation(con = db.con, station_number=input$station)#input$station)#input$station)#"08HB048"
     dbDisconnect(db.con)
     
-    stn.info <- merge(stn.meta.HYDAT,stn.reg.HYDAT[,c(1,4)], by= "station_number") %>% select(-sed_status,-drainage_area_effect) %>% 
+    stn.info <- merge(stn.meta.HYDAT, stn.reg.HYDAT[,c(1,4)], by= "station_number") %>% 
+      select(-sed_status,-drainage_area_effect) %>% 
       rename("Station Number"=station_number,"Station Name" =station_name,"Prov/Terr/State"=prov_terr_state_loc,"Station Status"=hyd_status,
              "Latitude"=latitude,"Longitude"=longitude,"Drainage Area (sq km)"=drainage_area_gross,"Reference (RHBN)"=rhbn,"Real-Time"=real_time,
-             "Regional Office"=regional_office,"Contributor"=contributor,"Operator"=operator,"Datum"=datum,"Regulated"=regulated)%>% 
+             "Regional Office"=regional_office,"Contributor"=contributor,"Operator"=operator,"Datum"=datum,"Regulated"=regulated) %>% 
       gather("header","content",1:14)
   })
   
@@ -239,6 +240,22 @@ server <- function(input, output) {
     if(metaData()[9,2]) realtimePlot()
   })
   
+  ### Leaflet map ###
+  ###################
+  
+  output$map <- renderLeaflet({
+    leaflet(bcstations) %>% addTiles() %>%
+      #setView(lng = -125, lat = 54, zoom = 5) # set centre and extent of map
+      addCircleMarkers(lng = ~LONGITUDE, lat = ~LATITUDE, layerId = ~STATION_NUMBER, color = "blue", radius = 3) %>%
+      addCircleMarkers(data = filter(bcstations, STATION_NUMBER %in% input$station), ~LONGITUDE, ~LATITUDE, color = "green", radius = 5) %>%
+      addCircles(lng = ~LONGITUDE, lat = ~LATITUDE, weight = 1,
+                 radius = 1, label = ~STATION_NAME, 
+                 popup = ~paste(STATION_NAME, "<br>",
+                                STATION_NUMBER, "<br>",
+                                DRAINAGE_AREA_GROSS)
+      )
+    
+  })
   
   ### Reactive Widgets ###
   ########################
