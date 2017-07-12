@@ -108,7 +108,7 @@ server <- function(input, output) {
   ### Select station ###
   ######################
   output$stnSelect <- renderUI({
-    selectizeInput("station", label = "Select or type your hydrometric station ID number:",choices = stations.list,options = list(placeholder ="type station ID number",maxOptions = 2420 ))
+    selectizeInput("station", label = "Select or type your hydrometric station ID number:",choices = stations.list,options = list(placeholder ="type station ID number",maxOptions = 2420 ), selected=allstationsTable()[input$allstationsTable_rows_selected,1])
   })
   
   
