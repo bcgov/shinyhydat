@@ -36,9 +36,8 @@ HYDAT.path <- "Hydat.sqlite3"
 ## Read in database
 hydat_con <- dbConnect(SQLite(), HYDAT.path)
 
-## Create a list of active stations in BC
+## Create a list of all stations in BC
 bcstations <- tbl(hydat_con, "STATIONS") %>%
-  filter(HYD_STATUS=="A") %>%
   filter(PROV_TERR_STATE_LOC=="BC") %>%
   collect() 
 
