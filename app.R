@@ -262,14 +262,25 @@ server <- function(input, output) {
   output$map <- renderLeaflet({
     leaflet(bcstations) %>% addTiles() %>%
       #setView(lng = -125, lat = 54, zoom = 5) # set centre and extent of map
-      addCircleMarkers(lng = ~LONGITUDE, lat = ~LATITUDE, layerId = ~STATION_NUMBER, color = "blue", radius = 3) %>%
-      addCircleMarkers(data = filter(bcstations, STATION_NUMBER %in% input$station), ~LONGITUDE, ~LATITUDE, color = "green", radius = 5) %>%
-      addCircles(lng = ~LONGITUDE, lat = ~LATITUDE, weight = 1,
-                 radius = 1, label = ~STATION_NAME, 
+      addCircles(data= filter(bcstations, HYD_STATUS=="A"), lng = ~LONGITUDE, lat = ~LATITUDE, layerId = ~STATION_NUMBER, color = "blue", radius = 3,
+                 group="Active",
+                 label = ~STATION_NAME, 
                  popup = ~paste(STATION_NAME, "<br>",
                                 STATION_NUMBER, "<br>",
-                                "DRAINAGE AREA = ",DRAINAGE_AREA_GROSS, "SQ. KM","<br>")
-      )
+                                "DRAINAGE AREA = ",DRAINAGE_AREA_GROSS, "SQ. KM", "<br>",
+                                ifelse(HYD_STATUS=="A","ACTIVE","DISCONTINUED"),"<br>")) %>%
+      addCircles(data= filter(bcstations, HYD_STATUS=="D"), lng = ~LONGITUDE, lat = ~LATITUDE, layerId = ~STATION_NUMBER, color = "red", radius = 3,
+                 group="Discontinued",
+                 label = ~STATION_NAME, 
+                 popup = ~paste(STATION_NAME, "<br>",
+                                STATION_NUMBER, "<br>",
+                                "DRAINAGE AREA = ",DRAINAGE_AREA_GROSS, "SQ. KM", "<br>",
+                                ifelse(HYD_STATUS=="A","ACTIVE","DISCONTINUED"),"<br>")) %>%
+      addCircleMarkers(data = filter(bcstations, STATION_NUMBER %in% input$station), ~LONGITUDE, ~LATITUDE, color = "green", radius = 5) %>% 
+      addLayersControl(position="bottomleft",
+                       overlayGroups = c("Active","Discontinued"),
+                       options = layersControlOptions(collapsed=FALSE)) %>% 
+      hideGroup("Discontinued")
     
   })
   
