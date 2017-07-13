@@ -36,9 +36,8 @@ HYDAT.path <- "Hydat.sqlite3"
 ## Read in database
 hydat_con <- dbConnect(SQLite(), HYDAT.path)
 
-## Create a list of active stations in BC
+## Create a list of all stations in BC
 bcstations <- tbl(hydat_con, "STATIONS") %>%
-  filter(HYD_STATUS=="A") %>%
   filter(PROV_TERR_STATE_LOC=="BC") %>%
   collect() 
 
@@ -69,7 +68,8 @@ ui <- dashboardPage(
            tabPanel("Station Info",
                     br(),
                     h4("Station Information"),
-                    tableOutput("metaTable")),
+                    fluidRow(column(tableOutput("metaTable"), width = 6),
+                             column(leafletOutput("stnmap"),width = 6))),
            tabPanel("Historical Data",
                     br(),
                     column(6, uiOutput("dateRange")),
@@ -91,7 +91,7 @@ ui <- dashboardPage(
                     leafletOutput("map")),
            tabPanel("Station Search",
                     br(),
-                    dataTableOutput("allstationsTable")
+                    DT::dataTableOutput("allstationsTable")
                     
            )
     )
@@ -108,8 +108,9 @@ server <- function(input, output) {
   ### Select station ###
   ######################
   output$stnSelect <- renderUI({
-    selectizeInput("station", label = "Select or type your hydrometric station ID number:",choices = stations.list,options = list(placeholder ="type station ID number",maxOptions = 2420 ))
+    selectizeInput("station", label = "Select or type your hydrometric station ID number:",choices = stations.list,options = list(placeholder ="type station ID number",maxOptions = 2420 ), selected=allstationsTable()[input$allstationsTable_rows_selected,1])
   })
+  
   
   ### MetaData ###
   ################
@@ -123,15 +124,30 @@ server <- function(input, output) {
     
     stn.info <- merge(stn.meta.HYDAT, stn.reg.HYDAT[,c(1,4)], by= "station_number") %>% 
       select(-sed_status,-drainage_area_effect) %>% 
+      mutate("Historical Data Link"=paste0("https://wateroffice.ec.gc.ca/report/historical_e.html?stn=",station_number),
+             "Real-Time Data Link"=ifelse(real_time==TRUE, paste0("https://wateroffice.ec.gc.ca/report/real_time_e.html?stn=",station_number),"No real-time data available.")) %>% 
       rename("Station Number"=station_number,"Station Name" =station_name,"Prov/Terr/State"=prov_terr_state_loc,"Station Status"=hyd_status,
              "Latitude"=latitude,"Longitude"=longitude,"Drainage Area (sq km)"=drainage_area_gross,"Reference (RHBN)"=rhbn,"Real-Time"=real_time,
              "Regional Office"=regional_office,"Contributor"=contributor,"Operator"=operator,"Datum"=datum,"Regulated"=regulated) %>% 
-      gather("header","content",1:14)
+      gather("header","content",1:16)
   })
   
   # Rander table for output
   output$metaTable <- renderTable(metaData(),colnames = FALSE)
   
+  
+  output$stnmap <- renderLeaflet({
+    leaflet(bcstations) %>% addTiles() %>%
+      setView(lng = metaData()[6,2], lat = metaData()[5,2], zoom = 9) %>% # set centre and extent of map
+      addCircleMarkers(data = filter(bcstations, STATION_NUMBER %in% input$station), ~LONGITUDE, ~LATITUDE, color = "red", radius = 6) %>%
+      addCircles(lng = ~LONGITUDE, lat = ~LATITUDE, weight = 1,
+                 radius = 1, label = ~STATION_NAME, 
+                 popup = ~paste(STATION_NAME, "<br>",
+                                STATION_NUMBER, "<br>",
+                                "DRAINAGE AREA = ",DRAINAGE_AREA_GROSS, "SQ. KM","<br>")
+      )
+    
+  })
   
   ### Historial Data ###
   ######################
@@ -207,7 +223,7 @@ server <- function(input, output) {
   })
   
   # Extract real-time data from webslink and clip to dates
-  realtimeData <- reactive({
+  realtimeData <- reactive({ 
     realtime.HYDAT <- RealTimeData(prov_terr_loc=metaData()[3,2], station_number=input$station)#input$station)##"08HB048"
     real.time <- realtime.HYDAT[,c(2,3,7)]
     colnames(real.time) <- c("DateTime","WL","Discharge")
@@ -246,14 +262,25 @@ server <- function(input, output) {
   output$map <- renderLeaflet({
     leaflet(bcstations) %>% addTiles() %>%
       #setView(lng = -125, lat = 54, zoom = 5) # set centre and extent of map
-      addCircleMarkers(lng = ~LONGITUDE, lat = ~LATITUDE, layerId = ~STATION_NUMBER, color = "blue", radius = 3) %>%
-      addCircleMarkers(data = filter(bcstations, STATION_NUMBER %in% input$station), ~LONGITUDE, ~LATITUDE, color = "green", radius = 5) %>%
-      addCircles(lng = ~LONGITUDE, lat = ~LATITUDE, weight = 1,
-                 radius = 1, label = ~STATION_NAME, 
+      addCircles(data= filter(bcstations, HYD_STATUS=="A"), lng = ~LONGITUDE, lat = ~LATITUDE, layerId = ~STATION_NUMBER, color = "blue", radius = 3,
+                 group="Active",
+                 label = ~STATION_NAME, 
                  popup = ~paste(STATION_NAME, "<br>",
                                 STATION_NUMBER, "<br>",
-                                DRAINAGE_AREA_GROSS)
-      )
+                                "DRAINAGE AREA = ",DRAINAGE_AREA_GROSS, "SQ. KM", "<br>",
+                                ifelse(HYD_STATUS=="A","ACTIVE","DISCONTINUED"),"<br>")) %>%
+      addCircles(data= filter(bcstations, HYD_STATUS=="D"), lng = ~LONGITUDE, lat = ~LATITUDE, layerId = ~STATION_NUMBER, color = "red", radius = 3,
+                 group="Discontinued",
+                 label = ~STATION_NAME, 
+                 popup = ~paste(STATION_NAME, "<br>",
+                                STATION_NUMBER, "<br>",
+                                "DRAINAGE AREA = ",DRAINAGE_AREA_GROSS, "SQ. KM", "<br>",
+                                ifelse(HYD_STATUS=="A","ACTIVE","DISCONTINUED"),"<br>")) %>%
+      addCircleMarkers(data = filter(bcstations, STATION_NUMBER %in% input$station), ~LONGITUDE, ~LATITUDE, color = "green", radius = 5) %>% 
+      addLayersControl(position="bottomleft",
+                       overlayGroups = c("Active","Discontinued"),
+                       options = layersControlOptions(collapsed=FALSE)) %>% 
+      hideGroup("Discontinued")
     
   })
   
@@ -307,7 +334,7 @@ server <- function(input, output) {
     {if(metaData()[9,2]==FALSE) paste("*** No real-time data available for this station. No data or plot available to view or download. ***")}
   })
   
-  output$allstationsTable <- renderDataTable({
+  allstationsTable <- reactive({
     db.con <- dbConnect(RSQLite::SQLite(), HYDAT.path)
     stn.meta.HYDAT <- StationMetadata(con = db.con, station_number=stations.list)
     stn.reg.HYDAT <- StationRegulation(con = db.con, station_number=stations.list)
@@ -318,6 +345,8 @@ server <- function(input, output) {
              "Drainage Area (sq km)"=drainage_area_gross,"Reference (RHBN)"=rhbn,"Real-Time"=real_time,
              "Regulated"=regulated)
   }) 
+  
+  output$allstationsTable <- DT::renderDataTable(allstationsTable(), selection="single") 
   
 }
 
