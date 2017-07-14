@@ -170,8 +170,8 @@ server <- function(input, output) {
     daily.flow.HYDAT <- DailyHydrometricData(con = db.con, get_flow = TRUE, station_number=input$station)#"08HB048")
     dbDisconnect(db.con)
     
-    flow.data <- daily.flow.HYDAT[,c(2,3)]
-    colnames(flow.data) <- c("Date", "Discharge")
+    flow.data <- daily.flow.HYDAT[,c(2:4)]
+    colnames(flow.data) <- c("Date", "Discharge","Symbol")
     
     min.date <- as.Date((paste((as.numeric(format(min(flow.data$Date),'%Y'))),01,01,sep="-")),"%Y-%m-%d")
     max.date <- as.Date((paste((as.numeric(format(max(flow.data$Date),'%Y'))),12,31,sep="-")),"%Y-%m-%d")
