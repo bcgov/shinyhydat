@@ -201,7 +201,7 @@ server <- function(input, output) {
     max.date <- as.Date((paste((as.numeric(format(max(flow.data$Date),'%Y'))),12,31,sep="-")),"%Y-%m-%d")
     flow.data.empty <- data.frame(Date=seq(min.date, max.date, by="days"))
     flow.data <- merge(flow.data.empty,flow.data,by="Date",all = TRUE)
-    
+
     flow.data= flow.data[flow.data$Date  >=input$date.range[1] & flow.data$Date <= input$date.range[2],]
   })
   
@@ -315,7 +315,7 @@ server <- function(input, output) {
   output$downloadData <- downloadHandler(
     filename = function() {paste0(metaData()[1,2]," - daily discharge.csv")},
     content = function(file) {
-      write.csv(histData(),file, row.names = FALSE)
+      write.csv(histData(),file, row.names = FALSE, na="")
     })  
   
   # Structure to download historical plot, only works if opened in browser
@@ -331,7 +331,7 @@ server <- function(input, output) {
   output$downloadRTData <- downloadHandler(
     filename = function() {paste0(metaData()[1,2]," - real-time discharge.csv")},
     content = function(file) {
-      write.csv(realtimeData(),file, row.names = FALSE)
+      write.csv(realtimeData(),file, row.names = FALSE, na="")
     })  
   
   # Structure to download real-time plot, only works if opened in browser
