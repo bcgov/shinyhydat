@@ -71,13 +71,35 @@ ui <- dashboardPage(
                     fluidRow(column(tableOutput("metaTable"), width = 6),
                              column(leafletOutput("stnmap"),width = 6))),
            tabPanel("Historical Data",
-                    br(),
-                    column(6, uiOutput("dateRange")),
-                    column(3, checkboxInput("log", label = "Plot Discharge axis on log scale", value= FALSE)),
-                    column(3, downloadButton('downloadData', 'Download Data'),
-                           downloadButton('downloadPlot', 'Download Plot')),
-                    column(11, br()),
-                    plotOutput('plot')),
+                    selectInput("histView",label="Historical data type to view:",choices = list("Long-term","Annual","Monthly", "Daily")),
+                    conditionalPanel(
+                      condition = "input.histView == 'Long-term'",
+                      br(),
+                      column(6, uiOutput("dateRange")),
+                      column(3, checkboxInput("log", label = "Plot Discharge axis on log scale", value= FALSE)),
+                      column(3, downloadButton('downloadData', 'Download Data'),
+                             downloadButton('downloadPlot', 'Download Plot')),
+                      column(11, br()),
+                      plotOutput('plot')),
+                    conditionalPanel(
+                      condition = "input.histView == 'Annual'",
+                      br(),
+                      h4("Annual data coming soon!"),
+                      h5("Including annual means, medians, maxs and mins")
+                      ),
+                    conditionalPanel(
+                      condition = "input.histView == 'Monthly'",
+                      br(),
+                      h4("Monthly data coming soon!"),
+                      h5("Including monthly means, medians, maxs and mins, and 25/27th percentiles") 
+                    ),
+                    conditionalPanel(
+                      condition = "input.histView == 'Daily'",
+                      br(),
+                      h4("Daily data coming soon!"),
+                      h5("Including daily means, medians, maxs and mins, and 25/27th percentiles")
+                    )
+                    ),
            tabPanel("Real-time Data",
                     br(),
                     column(6, textOutput("noRT"), uiOutput("dateRangeRT")),
@@ -88,7 +110,9 @@ ui <- dashboardPage(
                     plotOutput('rtplot')),
            tabPanel("Map Search",
                     br(),
-                    leafletOutput("map")),
+                    tags$style(type = "text/css", "#map {height: calc(100vh - 170px) !important;}"),
+                    leafletOutput("map")
+                    ),
            tabPanel("Station Search",
                     br(),
                     DT::dataTableOutput("allstationsTable")
@@ -277,7 +301,7 @@ server <- function(input, output) {
                                 "DRAINAGE AREA = ",DRAINAGE_AREA_GROSS, "SQ. KM", "<br>",
                                 ifelse(HYD_STATUS=="A","ACTIVE","DISCONTINUED"),"<br>")) %>%
       addCircleMarkers(data = filter(bcstations, STATION_NUMBER %in% input$station), ~LONGITUDE, ~LATITUDE, color = "green", radius = 5) %>% 
-      addLayersControl(position="bottomleft",
+      addLayersControl(position="topright",
                        overlayGroups = c("Active","Discontinued"),
                        options = layersControlOptions(collapsed=FALSE)) %>% 
       hideGroup("Discontinued")
