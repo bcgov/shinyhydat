@@ -73,7 +73,7 @@ ui <- dashboardPage(
                                                   leafletOutput("stnmap")
                                                   )))),
            tabPanel("Historical Data",
-                    selectInput("histView",label="Historical data type to view:",choices = list("Long-term","Annual","Monthly", "Daily")),
+                    selectInput("histView",label="Historical data type to view:",choices = list("Long-term","Annual","Monthly", "Daily","Instantaneous Extremes")),
                     # Historical Long-term
                     conditionalPanel(
                       condition = "input.histView == 'Long-term'",
@@ -113,6 +113,12 @@ ui <- dashboardPage(
                       br(),
                       h4("Daily data coming soon!"),
                       h5("Including daily means, medians, maxs and mins, and 25/27th percentiles")
+                    ),
+                    conditionalPanel(
+                      condition = "input.histView == 'Instantaneous Extremes'",
+                      br(),
+                      h4("instantaneous extreme data coming soon!"),
+                      h5("Including max and min")
                     )
                     ),
            tabPanel("Real-time Data",
