@@ -68,8 +68,10 @@ ui <- dashboardPage(
            tabPanel("Station Info",
                     br(),
                     h4("Station Information"),
-                    fluidRow(column(tableOutput("metaTable"), width = 6),
-                             column(leafletOutput("stnmap"),width = 6))),
+                    fluidRow(column(width = 5,tableOutput("metaTable")),
+                             column(width = 7,box(width=15,background="light-blue",
+                                                  leafletOutput("stnmap")
+                                                  )))),
            tabPanel("Historical Data",
                     selectInput("histView",label="Historical data type to view:",choices = list("Long-term","Annual","Monthly", "Daily")),
                     # Historical Long-term
@@ -90,15 +92,21 @@ ui <- dashboardPage(
                       column(6, checkboxInput("annuallog", label = "Plot Discharge axis on log scale", value= FALSE)),
                       column(3, downloadButton('download.annualData', 'Download Data'),
                                 downloadButton('download.annualPlot', 'Download Plot')),
-                      plotOutput('annualPlot')#,
+                      plotOutput('annualPlot'),
+                      h5("* Only years with complete data shown")#,
                      # tableOutput("annualTable")
                       ),
                     # Historical Monthly
                     conditionalPanel(
                       condition = "input.histView == 'Monthly'",
                       br(),
-                      h4("Monthly data coming soon!"),
-                      h5("Including monthly means, medians, maxs and mins, and 25/27th percentiles") 
+                      column(3, checkboxGroupInput("monthChecks", label = "Statistics", choices=list("Mean","Median","Maximum","Minimum","Upper Quartile","Lower Quartile"),selected = c("Mean","Median","Maximum","Minimum","Upper Quartile","Lower Quartile"))),
+                      column(6, checkboxInput("monthlog", label = "Plot Discharge axis on log scale", value= FALSE)),
+                      column(3, downloadButton('download.monthData', 'Download Data'),
+                             downloadButton('download.monthPlot', 'Download Plot')),
+                      plotOutput('monthPlot'),
+                      h5("* Missing dates ignored")#,
+                      #tableOutput("monthTable")
                     ),
                     conditionalPanel(
                       condition = "input.histView == 'Daily'",
@@ -309,6 +317,73 @@ server <- function(input, output) {
     content = function(file) {
       png(file, width = 900, height=500)
       print(annualPlot())
+      dev.off()
+    })    
+  
+  
+  ### Historical Monthly Data
+  
+  # Calculate annual data and render for printing
+  monthData <- function(){
+    daily.data <- histData()
+    daily.data$Year <- as.numeric(format(daily.data$Date,'%Y'))
+    daily.data$Month <- as.integer(format(daily.data$Date,'%m'))
+    
+    month.data <- daily.data %>% 
+      group_by(Month) %>% 
+      summarize(Mean=mean(Discharge, na.rm=TRUE),
+                Maximum=max(Discharge, na.rm=TRUE),
+                Minimum=min(Discharge, na.rm=TRUE),
+                Median=median(Discharge, na.rm=TRUE),
+                "Upper Quartile"=quantile(Discharge,.75, na.rm=TRUE),
+                "Lower Quartile"=quantile(Discharge,.25,na.rm=TRUE))
+    month.data
+  }
+  #output$monthTable <- renderTable(monthData(),colnames = TRUE)
+  
+  # Plot reactive data and render for plotting
+  monthPlot <- function(){
+    validate(
+      need(monthData(),"NOT AVAILABLE")
+    )
+    month.plot <- ggplot(data=monthData(), aes_string(x=monthData()$Month))+
+      ggtitle(paste0("Monthly Discharge - ",metaData()[2,2]," (",metaData()[1,2],")"))+
+      theme(plot.title = element_text(hjust = 0.5))+
+      {if("Mean" %in% input$monthChecks) geom_point(aes_string(y=monthData()$Mean),colour="dodgerblue4", size=3)}+
+      {if("Mean" %in% input$monthChecks) geom_line(aes_string(y=monthData()$Mean),colour="dodgerblue4")}+
+      {if("Median" %in% input$monthChecks) geom_point(aes_string(y=monthData()$Median),colour="royalblue", size=3)}+
+      {if("Median" %in% input$monthChecks) geom_line(aes_string(y=monthData()$Median),colour="royalblue")}+
+      {if("Minimum" %in% input$monthChecks) geom_point(aes_string(y=monthData()$Minimum),colour="purple", size=3)}+
+      {if("Minimum" %in% input$monthChecks) geom_line(aes_string(y=monthData()$Minimum),colour="purple")}+
+      {if("Maximum" %in% input$monthChecks) geom_point(aes_string(y=monthData()$Maximum),colour="green", size=3)}+
+      {if("Maximum" %in% input$monthChecks) geom_line(aes_string(y=monthData()$Maximum),colour="green")}+
+      {if("Upper Quartile" %in% input$monthChecks) geom_point(aes_string(y=monthData()$"Upper Quartile"),colour="red", size=3)}+
+      {if("Upper Quartile" %in% input$monthChecks) geom_line(aes_string(y=monthData()$"Upper Quartile"),colour="red")}+
+      {if("Lower Quartile" %in% input$monthChecks) geom_point(aes_string(y=monthData()$"Lower Quartile"),colour="pink", size=3)}+
+      {if("Lower Quartile" %in% input$monthChecks) geom_line(aes_string(y=monthData()$"Lower Quartile"),colour="pink")}+
+      {if(input$monthlog)scale_y_log10()}+
+      ylab("Discharge (cms)")+
+      xlab("Date")+
+      theme(axis.title = element_text(size=15),
+            plot.title = element_text(size=15,hjust = 0.5),
+            axis.text = element_text(size=13))
+    print(month.plot)
+  }
+  output$monthPlot <- renderPlot({
+    monthPlot()
+  })
+  
+  #Download plot/data buttons
+  output$download.monthData <- downloadHandler(
+    filename = function() {paste0(metaData()[1,2]," - monthly summary.csv")},
+    content = function(file) {
+      write.csv(monthData(),file, row.names = FALSE, na="")
+    })  
+  output$download.monthPlot <- downloadHandler(
+    filename = function() {paste0(metaData()[1,2]," - monthly summary.png")},
+    content = function(file) {
+      png(file, width = 900, height=500)
+      print(monthPlot())
       dev.off()
     })    
   
