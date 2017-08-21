@@ -72,21 +72,28 @@ ui <- dashboardPage(
                              column(leafletOutput("stnmap"),width = 6))),
            tabPanel("Historical Data",
                     selectInput("histView",label="Historical data type to view:",choices = list("Long-term","Annual","Monthly", "Daily")),
+                    # Historical Long-term
                     conditionalPanel(
                       condition = "input.histView == 'Long-term'",
                       br(),
                       column(6, uiOutput("dateRange")),
-                      column(3, checkboxInput("log", label = "Plot Discharge axis on log scale", value= FALSE)),
-                      column(3, downloadButton('downloadData', 'Download Data'),
-                             downloadButton('downloadPlot', 'Download Plot')),
+                      column(3, checkboxInput("ltlog", label = "Plot Discharge axis on log scale", value= FALSE)),
+                      column(3, downloadButton('download.ltData', 'Download Data'),
+                                downloadButton('download.ltPlot', 'Download Plot')),
                       column(11, br()),
-                      plotOutput('plot')),
+                      plotOutput('ltplot')),
+                    # Historical Annual
                     conditionalPanel(
                       condition = "input.histView == 'Annual'",
                       br(),
-                      h4("Annual data coming soon!"),
-                      h5("Including annual means, medians, maxs and mins")
+                      column(3, checkboxGroupInput("annualChecks", label = "Statistics", choices=list("Mean","Median","Maximum","Minimum"),selected = c("Mean","Median","Maximum","Minimum"))),
+                      column(6, checkboxInput("annuallog", label = "Plot Discharge axis on log scale", value= FALSE)),
+                      column(3, downloadButton('download.annualData', 'Download Data'),
+                                downloadButton('download.annualPlot', 'Download Plot')),
+                      plotOutput('annualPlot')#,
+                     # tableOutput("annualTable")
                       ),
+                    # Historical Monthly
                     conditionalPanel(
                       condition = "input.histView == 'Monthly'",
                       br(),
@@ -104,8 +111,8 @@ ui <- dashboardPage(
                     br(),
                     column(6, textOutput("noRT"), uiOutput("dateRangeRT")),
                     column(3, checkboxInput("logRT", label = "Plot Discharge axis on log scale", value= FALSE)),
-                    column(3, downloadButton('downloadRTData', 'Download Data'),
-                           downloadButton('downloadRTPlot', 'Download Plot')),
+                    column(3, downloadButton('download.rtData', 'Download Data'),
+                           downloadButton('download.rtPlot', 'Download Plot')),
                     column(11, br()),
                     plotOutput('rtplot')),
            tabPanel("Map Search",
@@ -114,6 +121,7 @@ ui <- dashboardPage(
                     leafletOutput("map")
                     ),
            tabPanel("Station Search",
+                    h4("Click on row to select station."),
                     br(),
                     DT::dataTableOutput("allstationsTable")
                     
@@ -187,7 +195,10 @@ server <- function(input, output) {
                 maxDate=max(date))
   })
   
-  # Extract historical data from HYDAT, fill in missing days, and clip to dates
+  
+  ### Historical Long-term Data
+  
+  # Get daily data from HYDAT, fill in missing days, and clip to dates
   histData <- reactive({
     
     db.con <- dbConnect(RSQLite::SQLite(), HYDAT.path)
@@ -205,8 +216,8 @@ server <- function(input, output) {
     flow.data= flow.data[flow.data$Date  >=input$date.range[1] & flow.data$Date <= input$date.range[2],]
   })
   
-  # Create ggplot function
-  plotInput <- function(){
+  # Plot reactive data and render for plotting
+  longtermPlot <- function(){
     validate(
       need(histData(),"NOT AVAILABLE")
     )
@@ -214,7 +225,7 @@ server <- function(input, output) {
       ggtitle(paste0("DAILY DISCHARGE - ",metaData()[2,2]," (",metaData()[1,2],")"))+
       theme(plot.title = element_text(hjust = 0.5))+
       geom_line(colour="dodgerblue4")+
-      {if(input$log)scale_y_log10()}+
+      {if(input$ltlog)scale_y_log10()}+
       ylab("Discharge (cms)")+
       xlab("Date")+
       theme(axis.title = element_text(size=15),
@@ -223,13 +234,83 @@ server <- function(input, output) {
     
     print(full.record.plot)
   }
-  
-  # Render ggplot for output
-  output$plot <- renderPlot({
-    plotInput()
+  output$ltplot <- renderPlot({
+    longtermPlot()
   })
   
+  #Download plot/data buttons
+  output$download.ltData <- downloadHandler(
+    filename = function() {paste0(metaData()[1,2]," - daily discharge.csv")},
+    content = function(file) {
+      write.csv(histData(),file, row.names = FALSE, na="")
+    })
+  output$download.ltPlot <- downloadHandler(
+    filename = function() {paste0(metaData()[1,2]," - daily discharge.png")},
+    content = function(file) {
+      png(file, width = 900, height=500)
+      print(plotInput())
+      dev.off()
+    })    
   
+  ### Historical Annual Data
+  
+  # Calculate annual data and render for printing
+  annualData <- function(){
+    daily.data <- histData()
+    daily.data$Year <- as.numeric(format(daily.data$Date,'%Y'))
+    
+    annual.data <- daily.data %>% 
+      group_by(Year) %>% 
+      summarize("Missing Days"= sum(is.na(Discharge)),
+                Mean=mean(Discharge),
+                Maximum=max(Discharge),
+                Minimum=min(Discharge),
+                Median=median(Discharge))
+    annual.data
+  }
+  # output$annualTable <- renderTable(annualData(),colnames = TRUE)
+  
+  # Plot reactive data and render for plotting
+    annualPlot <- function(){
+    validate(
+      need(annualData(),"NOT AVAILABLE")
+    )
+    annual.plot <- ggplot(data=annualData(), aes_string(x=annualData()$Year))+
+      ggtitle(paste0("Annual Discharge - ",metaData()[2,2]," (",metaData()[1,2],")"))+
+      theme(plot.title = element_text(hjust = 0.5))+
+      {if("Mean" %in% input$annualChecks) geom_point(aes_string(y=annualData()$Mean),colour="dodgerblue4", size=3)}+
+      {if("Mean" %in% input$annualChecks) geom_line(aes_string(y=annualData()$Mean),colour="dodgerblue4")}+
+      {if("Median" %in% input$annualChecks) geom_point(aes_string(y=annualData()$Median),colour="royalblue", size=3)}+
+      {if("Median" %in% input$annualChecks) geom_line(aes_string(y=annualData()$Median),colour="royalblue")}+
+      {if("Minimum" %in% input$annualChecks) geom_point(aes_string(y=annualData()$Minimum),colour="purple", size=3)}+
+      {if("Minimum" %in% input$annualChecks) geom_line(aes_string(y=annualData()$Minimum),colour="purple")}+
+      {if("Maximum" %in% input$annualChecks) geom_point(aes_string(y=annualData()$Maximum),colour="green", size=3)}+
+      {if("Maximum" %in% input$annualChecks) geom_line(aes_string(y=annualData()$Maximum),colour="green")}+
+      {if(input$annuallog)scale_y_log10()}+
+      ylab("Discharge (cms)")+
+      xlab("Date")+
+      theme(axis.title = element_text(size=15),
+            plot.title = element_text(size=15,hjust = 0.5),
+            axis.text = element_text(size=13))
+    print(annual.plot)
+  }
+  output$annualPlot <- renderPlot({
+    annualPlot()
+  })
+  
+  #Download plot/data buttons
+  output$download.annualData <- downloadHandler(
+    filename = function() {paste0(metaData()[1,2]," - annual summary.csv")},
+    content = function(file) {
+      write.csv(annualData(),file, row.names = FALSE, na="")
+    })  
+  output$download.annualPlot <- downloadHandler(
+    filename = function() {paste0(metaData()[1,2]," - annual summary.png")},
+    content = function(file) {
+      png(file, width = 900, height=500)
+      print(annualPlot())
+      dev.off()
+    })    
   
   ### Real-Time Data ###
   ######################
@@ -311,31 +392,17 @@ server <- function(input, output) {
   ### Reactive Widgets ###
   ########################
   
-  # Structure to download historical CSV file, only works if opened in browser
-  output$downloadData <- downloadHandler(
-    filename = function() {paste0(metaData()[1,2]," - daily discharge.csv")},
-    content = function(file) {
-      write.csv(histData(),file, row.names = FALSE, na="")
-    })  
-  
-  # Structure to download historical plot, only works if opened in browser
-  output$downloadPlot <- downloadHandler(
-    filename = function() {paste0(metaData()[1,2]," - daily discharge.png")},
-    content = function(file) {
-      png(file, width = 900, height=500)
-      print(plotInput())
-      dev.off()
-    })    
+
   
   # Structure to download real-time CSV file, only works if opened in browser
-  output$downloadRTData <- downloadHandler(
+  output$download.rtData <- downloadHandler(
     filename = function() {paste0(metaData()[1,2]," - real-time discharge.csv")},
     content = function(file) {
       write.csv(realtimeData(),file, row.names = FALSE, na="")
     })  
   
   # Structure to download real-time plot, only works if opened in browser
-  output$downloadRTPlot <- downloadHandler(
+  output$download.rtPlot <- downloadHandler(
     filename = function() {paste0(metaData()[1,2]," - real-time discharge.png")},
     content = function(file) {
       png(file, width = 900, height=500)
