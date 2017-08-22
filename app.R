@@ -26,6 +26,7 @@ library(HYDAT)
 library(RSQLite)
 library(leaflet)
 library(DBI)
+library(tidyhydat)
 
 
 #####  Set File Pathways #####
@@ -200,13 +201,12 @@ server <- function(input, output) {
   
   # Extract historical data from HYDAT and determine the start and end dates for clipping
   histDates <- reactive({
-    db.con <- dbConnect(RSQLite::SQLite(), HYDAT.path)
-    daily.flow.HYDAT <- DailyHydrometricData(con = db.con, get_flow = TRUE, station_number=input$station)#"08HB048")
-    dbDisconnect(db.con)
-    
-    daily.flow.dates <- daily.flow.HYDAT[,c(2,3)] %>% 
-      summarize(minDate=min(date),
-                maxDate=max(date))
+
+    daily.flow.HYDAT <- DLY_FLOWS(hydat_path = HYDAT.path,PROV_TERR_STATE_LOC =metaData()[3,2], STATION_NUMBER=input$station)
+
+    daily.flow.dates <- daily.flow.HYDAT[,c(2,4)] %>% 
+      summarize(minDate=min(Date),
+                maxDate=max(Date))
   })
   
   
@@ -215,12 +215,10 @@ server <- function(input, output) {
   # Get daily data from HYDAT, fill in missing days, and clip to dates
   histData <- reactive({
     
-    db.con <- dbConnect(RSQLite::SQLite(), HYDAT.path)
-    daily.flow.HYDAT <- DailyHydrometricData(con = db.con, get_flow = TRUE, station_number=input$station)#"08HB048")
-    dbDisconnect(db.con)
+    daily.flow.HYDAT <- DLY_FLOWS(hydat_path = HYDAT.path,PROV_TERR_STATE_LOC =metaData()[3,2], STATION_NUMBER=input$station)
     
-    flow.data <- daily.flow.HYDAT[,c(2:4)]
-    colnames(flow.data) <- c("Date", "Discharge","Symbol")
+    flow.data <- daily.flow.HYDAT[,c(2:5)]
+    colnames(flow.data) <- c("Date", "Parameter","Discharge","Symbol")
     
     min.date <- as.Date((paste((as.numeric(format(min(flow.data$Date),'%Y'))),01,01,sep="-")),"%Y-%m-%d")
     max.date <- as.Date((paste((as.numeric(format(max(flow.data$Date),'%Y'))),12,31,sep="-")),"%Y-%m-%d")
@@ -398,7 +396,9 @@ server <- function(input, output) {
   
   # Extract historical data from HYDAT and determine the start and end dates for clipping
   realtimeDates <- reactive({
-    realtime.HYDAT <- RealTimeData(prov_terr_loc=metaData()[3,2], station_number=input$station)#input$station)#input$station)##"08HB048"
+
+    realtime.HYDAT <- download_realtime_dd(STATION_NUMBER = input$station,PROV_TERR_STATE_LOC = metaData()[3,2])
+    
     real.timeDates <- as.data.frame(realtime.HYDAT[,2])
     colnames(real.timeDates) <- "DateTime"
     real.timeDates$Date <- as.Date(real.timeDates$DateTime,"%Y-%m-%d")
@@ -410,9 +410,11 @@ server <- function(input, output) {
   
   # Extract real-time data from webslink and clip to dates
   realtimeData <- reactive({ 
-    realtime.HYDAT <- RealTimeData(prov_terr_loc=metaData()[3,2], station_number=input$station)#input$station)##"08HB048"
-    real.time <- realtime.HYDAT[,c(2,3,7)]
-    colnames(real.time) <- c("DateTime","WL","Discharge")
+
+    realtime.HYDAT <- download_realtime_dd(STATION_NUMBER = input$station,PROV_TERR_STATE_LOC = metaData()[3,2])
+
+    real.time <- realtime.HYDAT[,c(2:4)] %>% spread(Parameter,Value)
+    colnames(real.time) <- c("DateTime","Discharge","Water Level")
     real.time$Date <- as.Date(real.time$DateTime,"%Y-%m-%d")
     real.time <- as.data.frame(real.time[,c(4,1:3)])
     
