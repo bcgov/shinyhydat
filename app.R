@@ -56,6 +56,18 @@ ui <- dashboardPage(
   ),
   dashboardBody(
     tabBox("TITLE",width = 12,
+           tabPanel("Station Listings",
+                    fluidRow(column(width = 8,
+                    helpText("Search for a station by entering all or part of a station name, number, or other categories. To view station information and hydrometric data, click on the row and view the other tabs. To search by map, go to the 'Stations Map' tab and click on the marker of your desired station. Each map or table selection will replace the previous selection."))),
+                    br(),
+                    DT::dataTableOutput("allstationsTable")
+                    
+           ),
+           tabPanel("Stations Map",
+                    br(),
+                    tags$style(type = "text/css", "#map {height: calc(100vh - 170px) !important;}"),
+                    leafletOutput("map")
+           ),
            tabPanel("Station Info",
                     br(),
                     h4("Station Information"),
@@ -121,18 +133,7 @@ ui <- dashboardPage(
                     column(3, downloadButton('download.rtData', 'Download Data'),
                            downloadButton('download.rtPlot', 'Download Plot')),
                     column(11, br()),
-                    plotOutput('rtplot')),
-           tabPanel("Map Search",
-                    br(),
-                    tags$style(type = "text/css", "#map {height: calc(100vh - 170px) !important;}"),
-                    leafletOutput("map")
-                    ),
-           tabPanel("Station Search",
-                    h4("Click on row to select station."),
-                    br(),
-                    DT::dataTableOutput("allstationsTable")
-                    
-           )
+                    plotOutput('rtplot'))
     )
   )
 )
@@ -142,13 +143,13 @@ ui <- dashboardPage(
 ######################################################################################################
 
 # Set up the server (where all the magic happens)
-server <- function(input, output) {
+server <- function(input, output, session) {
   
   ### Select station ###
   ######################
   output$stnSelect <- renderUI({
     selectizeInput("station", label = "Select or type your hydrometric station ID number:",choices = stations.list,options = list(placeholder ="type station ID number",maxOptions = 2420 ), selected=allstationsTable()[input$allstationsTable_rows_selected,1])
-  })
+    })
   
   
   ### MetaData ###
@@ -447,26 +448,25 @@ server <- function(input, output) {
   output$map <- renderLeaflet({
     leaflet(stations) %>% addTiles() %>%
       #setView(lng = -125, lat = 54, zoom = 5) # set centre and extent of map
-      addCircles(data= filter(stations, HYD_STATUS=="A"), lng = ~LONGITUDE, lat = ~LATITUDE, layerId = ~STATION_NUMBER, color = "blue", radius = 3,
+      addCircleMarkers(data= filter(stations, HYD_STATUS=="A"), lng = ~LONGITUDE, lat = ~LATITUDE, layerId = ~STATION_NUMBER, color = "blue", radius = 2,
                  group="Active",
-                 label = ~STATION_NAME, 
-                 popup = ~paste(STATION_NAME, "<br>",
-                                STATION_NUMBER, "<br>",
-                                "DRAINAGE AREA = ",DRAINAGE_AREA_GROSS, "SQ. KM", "<br>",
-                                ifelse(HYD_STATUS=="A","ACTIVE","DISCONTINUED"),"<br>")) %>%
-      addCircles(data= filter(stations, HYD_STATUS=="D"), lng = ~LONGITUDE, lat = ~LATITUDE, layerId = ~STATION_NUMBER, color = "red", radius = 3,
+                 label = ~paste0(STATION_NAME, " (",STATION_NUMBER,")")) %>% #,
+                 #popup = ~paste(STATION_NAME, "<br>", STATION_NUMBER, "<br>","DRAINAGE AREA = ",DRAINAGE_AREA_GROSS, "SQ. KM", "<br>",ifelse(HYD_STATUS=="A","ACTIVE","DISCONTINUED"),"<br>")) %>%
+      addCircleMarkers(data= filter(stations, HYD_STATUS=="D"), lng = ~LONGITUDE, lat = ~LATITUDE, layerId = ~STATION_NUMBER, color = "red", radius = 2,
                  group="Discontinued",
-                 label = ~STATION_NAME, 
-                 popup = ~paste(STATION_NAME, "<br>",
-                                STATION_NUMBER, "<br>",
-                                "DRAINAGE AREA = ",DRAINAGE_AREA_GROSS, "SQ. KM", "<br>",
-                                ifelse(HYD_STATUS=="A","ACTIVE","DISCONTINUED"),"<br>")) %>%
-      addCircleMarkers(data = filter(stations, STATION_NUMBER %in% input$station), ~LONGITUDE, ~LATITUDE, color = "green", radius = 5) %>% 
+                 label = ~paste0(STATION_NAME, " (",STATION_NUMBER,")")) %>% #,
+                 #popup = ~paste(STATION_NAME, "<br>", STATION_NUMBER, "<br>","DRAINAGE AREA = ",DRAINAGE_AREA_GROSS, "SQ. KM", "<br>",ifelse(HYD_STATUS=="A","ACTIVE","DISCONTINUED"),"<br>")) %>%
+      addCircleMarkers(data = filter(stations, STATION_NUMBER %in% input$station), ~LONGITUDE, ~LATITUDE, color = "green", radius = 6) %>% 
       addLayersControl(position="topright",
                        overlayGroups = c("Active","Discontinued"),
                        options = layersControlOptions(collapsed=FALSE)) %>% 
       hideGroup("Discontinued")
     
+  })
+  
+  
+  observeEvent(input$map_marker_click, { # update the location selectInput on map clicks
+    updateSelectizeInput(session, "station", selected=input$map_marker_click$id)
   })
   
   ### Reactive Widgets ###
@@ -520,7 +520,7 @@ server <- function(input, output) {
              "Regulated"=regulated)
   }) 
   
-  output$allstationsTable <- DT::renderDataTable(allstationsTable(), selection="single") 
+  output$allstationsTable <- DT::renderDataTable(allstationsTable(), selection=list(mode="single")) 
   
 }
 
