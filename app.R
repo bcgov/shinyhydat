@@ -282,7 +282,7 @@ server <- function(input, output) {
       need(annualData(),"NOT AVAILABLE")
     )
     annual.plot <- ggplot(data=annualData(), aes_string(x=annualData()$Year))+
-      ggtitle(paste0("Annual Discharge - ",metaData()[2,2]," (",metaData()[1,2],")"))+
+      ggtitle(paste0("ANNUAL FLOWS - ",metaData()[2,2]," (",metaData()[1,2],")"))+
       theme(plot.title = element_text(hjust = 0.5))+
       {if("Mean" %in% input$annualChecks) geom_point(aes_string(y=annualData()$Mean),colour="dodgerblue4", size=3)}+
       {if("Mean" %in% input$annualChecks) geom_line(aes_string(y=annualData()$Mean),colour="dodgerblue4")}+
@@ -294,7 +294,7 @@ server <- function(input, output) {
       {if("Maximum" %in% input$annualChecks) geom_line(aes_string(y=annualData()$Maximum),colour="green")}+
       {if(input$annuallog)scale_y_log10()}+
       ylab("Discharge (cms)")+
-      xlab("Date")+
+      xlab("Year")+
       theme(axis.title = element_text(size=15),
             plot.title = element_text(size=15,hjust = 0.5),
             axis.text = element_text(size=13))
@@ -345,7 +345,7 @@ server <- function(input, output) {
       need(monthData(),"NOT AVAILABLE")
     )
     month.plot <- ggplot(data=monthData(), aes_string(x=monthData()$Month))+
-      ggtitle(paste0("Monthly Discharge - ",metaData()[2,2]," (",metaData()[1,2],")"))+
+      ggtitle(paste0("MONTHLY FLOWS - ",metaData()[2,2]," (",metaData()[1,2],")"))+
       theme(plot.title = element_text(hjust = 0.5))+
       {if("Mean" %in% input$monthChecks) geom_point(aes_string(y=monthData()$Mean),colour="dodgerblue4", size=3)}+
       {if("Mean" %in% input$monthChecks) geom_line(aes_string(y=monthData()$Mean),colour="dodgerblue4")}+
@@ -361,7 +361,8 @@ server <- function(input, output) {
       {if("Lower Quartile" %in% input$monthChecks) geom_line(aes_string(y=monthData()$"Lower Quartile"),colour="pink")}+
       {if(input$monthlog)scale_y_log10()}+
       ylab("Discharge (cms)")+
-      xlab("Date")+
+      xlab("Month")+
+      scale_x_continuous(breaks = c(1:12),labels = c("Jan","Feb","Mar","Apr","May","Jun","July","Aug","Sep","Oct","Nov","Dec"))+
       theme(axis.title = element_text(size=15),
             plot.title = element_text(size=15,hjust = 0.5),
             axis.text = element_text(size=13))
