@@ -78,6 +78,7 @@ ui <- dashboardPage(
                     # Historical Annual
                     conditionalPanel(
                       condition = "input.histView == 'Annual'",
+                      h3("under development"),
                       br(),
                       column(3, checkboxGroupInput("annualChecks", label = "Statistics", choices=list("Mean","Median","Maximum","Minimum"),selected = c("Mean","Median","Maximum","Minimum"))),
                       column(6, checkboxInput("annuallog", label = "Plot Discharge axis on log scale", value= FALSE)),
@@ -90,6 +91,7 @@ ui <- dashboardPage(
                     # Historical Monthly
                     conditionalPanel(
                       condition = "input.histView == 'Monthly'",
+                      h3("under development"),
                       br(),
                       column(3, checkboxGroupInput("monthChecks", label = "Statistics", choices=list("Mean","Median","Maximum","Minimum","Upper Quartile","Lower Quartile"),selected = c("Mean","Median","Maximum","Minimum","Upper Quartile","Lower Quartile"))),
                       column(6, checkboxInput("monthlog", label = "Plot Discharge axis on log scale", value= FALSE)),
