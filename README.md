@@ -3,15 +3,15 @@
 ---
 
 ## HYDAT Streamflow Data Viewer
+#### Currently in development
 
-This is a shiny app to view and download historical streamflow data from a downloaded HYDAT SQLite database ([download here](http://collaboration.cmc.ec.gc.ca/cmc/hydrometrics/www/)) and real-time data using the [HYDAT](https://github.com/CentreForHydrology/HYDAT) R package (D. Hutchinson (ECCC). 
+This is a shiny app to view and download historical streamflow data from a downloaded HYDAT SQLite database ([download here](http://collaboration.cmc.ec.gc.ca/cmc/hydrometrics/www/)) and real-time data using [tidyhydat](https://github.com/bcgov/tidyhydat).
 
 ### Usage
 
 **Data**
 
-- A .csv file of a list of all hydrometric stations to include in the viewer
-- A hydat.sqlite file in the same folder as the R script files
+- A [hydat.sqlite](http://collaboration.cmc.ec.gc.ca/cmc/hydrometrics/www/) file in the same folder as the R script files
 
 **Using**
 
