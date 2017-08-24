@@ -18,6 +18,7 @@
 ### Shiny App Script ###
 ########################
 
+library(shiny) # 1.0.3 shiny
 library(shinydashboard)
 library(ggplot2)
 library(dplyr) ## >0.7.0 dplyr
@@ -37,7 +38,13 @@ HYDAT.path <- "Hydat.sqlite3"
 ## Create a list of all stations in BC
 stations <- STATIONS(HYDAT.path,
                        STATION_NUMBER = "ALL",
-                       PROV_TERR_STATE_LOC = "BC")
+                       PROV_TERR_STATE_LOC = "BC") %>%
+  left_join(AGENCY_LIST(HYDAT.path), by = c("CONTRIBUTOR_ID" = "AGENCY_ID")) %>% rename("CONTRIBUTOR"=AGENCY_EN) %>% 
+  left_join(AGENCY_LIST(HYDAT.path), by = c("OPERATOR_ID" = "AGENCY_ID")) %>%  rename("OPERATOR"=AGENCY_EN) %>% 
+  left_join(DATUM_LIST(HYDAT.path), by = c("DATUM_ID" = "DATUM_ID")) %>% rename("DATUM"=DATUM_EN) %>% 
+  mutate(REGIONAL_OFFICE_ID = as.integer(REGIONAL_OFFICE_ID)) %>% 
+  left_join(REGIONAL_OFFICE_LIST(HYDAT.path), by = c("REGIONAL_OFFICE_ID" = "REGIONAL_OFFICE_ID")) %>% rename("REGIONAL_OFFICE"=REGIONAL_OFFICE_NAME_EN) %>% 
+  select(STATION_NUMBER,STATION_NAME,PROV_TERR_STATE_LOC,HYD_STATUS,LATITUDE,LONGITUDE,DRAINAGE_AREA_GROSS,RHBN,REAL_TIME,CONTRIBUTOR,OPERATOR,REGIONAL_OFFICE,DATUM)
 
 stations.list <- as.list(stations$STATION_NUMBER)
 
@@ -158,21 +165,20 @@ server <- function(input, output, session) {
   # Extract station metadata from HYDAT
   metaData <- reactive({
     
-    stn.meta.HYDAT <- stations %>% filter(STATION_NUMBER==input$station) %>% rename("station_number"= STATION_NUMBER)#input$station)
+    stn.meta.HYDAT <- stations %>% filter(STATION_NUMBER==input$station)#input$station)
     
     # will replace with tidyhydat
     db.con <- dbConnect(RSQLite::SQLite(), HYDAT.path)
-    stn.reg.HYDAT <- StationRegulation(con = db.con, station_number=input$station)#input$station)#input$station)#"08HB048"
+    stn.reg.HYDAT <- StationRegulation(con = db.con, station_number=input$station) %>% rename("STATION_NUMBER"= station_number)#input$station)#input$station)#"08HB048"
     dbDisconnect(db.con)
     #
     
-    stn.info <- merge(stn.meta.HYDAT, stn.reg.HYDAT[,c(1,4)], by= "station_number") %>% 
-      select(-SED_STATUS,-DRAINAGE_AREA_EFFECT) %>% 
-      mutate("Historical Data Link"=paste0("https://wateroffice.ec.gc.ca/report/historical_e.html?stn=",station_number),
-             "Real-Time Data Link"=ifelse(REAL_TIME==TRUE, paste0("https://wateroffice.ec.gc.ca/report/real_time_e.html?stn=",station_number),"No real-time data available.")) %>% 
-      rename("Station Number"=station_number,"Station Name" =STATION_NAME,"Prov/Terr/State"=PROV_TERR_STATE_LOC,"Station Status"=HYD_STATUS,
+    stn.info <- merge(stn.meta.HYDAT, stn.reg.HYDAT[,c(1,4)], by= "STATION_NUMBER") %>% 
+      mutate("Historical Data Link"=paste0("https://wateroffice.ec.gc.ca/report/historical_e.html?stn=",STATION_NUMBER),
+             "Real-Time Data Link"=ifelse(REAL_TIME==TRUE, paste0("https://wateroffice.ec.gc.ca/report/real_time_e.html?stn=",STATION_NUMBER),"No real-time data available.")) %>% 
+      rename("Station Number"=STATION_NUMBER,"Station Name" =STATION_NAME,"Prov/Terr/State"=PROV_TERR_STATE_LOC,"Station Status"=HYD_STATUS,
              "Latitude"=LATITUDE,"Longitude"=LONGITUDE,"Drainage Area (sq km)"=DRAINAGE_AREA_GROSS,"Reference (RHBN)"=RHBN,"Real-Time"=REAL_TIME,
-             "Regional Office ID"=REGIONAL_OFFICE_ID,"Contributor ID"=CONTRIBUTOR_ID,"Operator"=OPERATOR_ID,"Datum"=DATUM_ID,"Regulated"=regulated) %>% 
+             "Regional Office"=REGIONAL_OFFICE,"Contributor"=CONTRIBUTOR,"Operator"=OPERATOR,"Datum"=DATUM,"Regulated"=regulated) %>% 
       gather("header","content",1:16)
   })
   
@@ -182,7 +188,7 @@ server <- function(input, output, session) {
   
   output$stnmap <- renderLeaflet({
     leaflet(stations) %>% addTiles() %>%
-      setView(lng = metaData()[7,2], lat = metaData()[6,2], zoom = 9) %>% # set centre and extent of map
+      setView(lng = metaData()[6,2], lat = metaData()[5,2], zoom = 9) %>% # set centre and extent of map
       addCircleMarkers(data = filter(stations, STATION_NUMBER %in% input$station), ~LONGITUDE, ~LATITUDE, color = "red", radius = 6) %>%
       addCircles(lng = ~LONGITUDE, lat = ~LATITUDE, weight = 1,
                  radius = 1, label = ~STATION_NAME, 
@@ -193,7 +199,7 @@ server <- function(input, output, session) {
     
   })
   
-  ### Historial Data ###
+  ### Historical Data ###
   ######################
   
   # Extract historical data from HYDAT and determine the start and end dates for clipping
@@ -439,7 +445,7 @@ server <- function(input, output, session) {
   
   # Render ggplot for output (if not real time, dont plot)
   output$rtplot <- renderPlot({
-    if(metaData()[10,2]==1) realtimePlot()
+    if(metaData()[9,2]=="Yes") realtimePlot()
   })
   
   ### Leaflet map ###
@@ -448,11 +454,11 @@ server <- function(input, output, session) {
   output$map <- renderLeaflet({
     leaflet(stations) %>% addTiles() %>%
       #setView(lng = -125, lat = 54, zoom = 5) # set centre and extent of map
-      addCircleMarkers(data= filter(stations, HYD_STATUS=="A"), lng = ~LONGITUDE, lat = ~LATITUDE, layerId = ~STATION_NUMBER, color = "blue", radius = 2,
+      addCircleMarkers(data= filter(stations, HYD_STATUS=="ACTIVE"), lng = ~LONGITUDE, lat = ~LATITUDE, layerId = ~STATION_NUMBER, color = "blue", radius = 2,
                  group="Active",
                  label = ~paste0(STATION_NAME, " (",STATION_NUMBER,")")) %>% #,
                  #popup = ~paste(STATION_NAME, "<br>", STATION_NUMBER, "<br>","DRAINAGE AREA = ",DRAINAGE_AREA_GROSS, "SQ. KM", "<br>",ifelse(HYD_STATUS=="A","ACTIVE","DISCONTINUED"),"<br>")) %>%
-      addCircleMarkers(data= filter(stations, HYD_STATUS=="D"), lng = ~LONGITUDE, lat = ~LATITUDE, layerId = ~STATION_NUMBER, color = "red", radius = 2,
+      addCircleMarkers(data= filter(stations, HYD_STATUS=="DISCONTINUED"), lng = ~LONGITUDE, lat = ~LATITUDE, layerId = ~STATION_NUMBER, color = "red", radius = 2,
                  group="Discontinued",
                  label = ~paste0(STATION_NAME, " (",STATION_NUMBER,")")) %>% #,
                  #popup = ~paste(STATION_NAME, "<br>", STATION_NUMBER, "<br>","DRAINAGE AREA = ",DRAINAGE_AREA_GROSS, "SQ. KM", "<br>",ifelse(HYD_STATUS=="A","ACTIVE","DISCONTINUED"),"<br>")) %>%
@@ -497,30 +503,30 @@ server <- function(input, output, session) {
   
   # Structure to set real-time dates input to match start and ends of data (remove if no real-time data)
   output$dateRangeRT <- renderUI({
-    {if(metaData()[10,2]==1) dateRangeInput("date.rangeRT","Select start and end dates to plot:",format = "yyyy-mm-dd",startview = "month",start = realtimeDates()$minDate, end = realtimeDates()$maxDate)}
+    {if(metaData()[9,2]=="Yes") dateRangeInput("date.rangeRT","Select start and end dates to plot:",format = "yyyy-mm-dd",startview = "month",start = realtimeDates()$minDate, end = realtimeDates()$maxDate)}
   })
   
   # Place text in real-time sidepanel section if no real-time data
   output$noRT <- renderText({
-    {if(metaData()[10,2]==0) paste("*** No real-time data available for this station. No data or plot available to view or download. ***")}
+    {if(metaData()[9,2]=="No") paste("*** No real-time data available for this station. No data or plot available to view or download. ***")}
   })
   
   allstationsTable <- reactive({
     
-    stn.meta.HYDAT <- stations %>% filter(STATION_NUMBER==stations.list) %>% rename("station_number"= STATION_NUMBER)#input$station)
+    stn.meta.HYDAT <- stations %>% filter(STATION_NUMBER==stations.list)#input$station)
     
     # will replace with tidyhydat
     db.con <- dbConnect(RSQLite::SQLite(), HYDAT.path)
-    stn.reg.HYDAT <- StationRegulation(con = db.con, station_number=stations.list)
+    stn.reg.HYDAT <- StationRegulation(con = db.con, station_number=stations.list) %>% rename("STATION_NUMBER"= station_number)
     dbDisconnect(db.con)
     
-    stn.info <- merge(stn.meta.HYDAT[,c(1:3,5,9,11,12)],stn.reg.HYDAT[,c(1,4)], by= "station_number") %>% 
-      rename("Station Number"=station_number,"Station Name" =STATION_NAME,"Prov/ Terr/ State"=PROV_TERR_STATE_LOC,"Station Status"=HYD_STATUS,
-             "Drainage Area (sq km)"=DRAINAGE_AREA_GROSS,"Reference (RHBN)"=RHBN,"Real-Time"=REAL_TIME,
+    stn.info <- merge(stn.meta.HYDAT[,c(1:4,7:12)],stn.reg.HYDAT[,c(1,4)], by= "STATION_NUMBER") %>% 
+      rename("Station Number"=STATION_NUMBER,"Station Name" =STATION_NAME,"Prov/ Terr/ State"=PROV_TERR_STATE_LOC,"Station Status"=HYD_STATUS,
+             "Drainage Area (sq km)"=DRAINAGE_AREA_GROSS,"Reference (RHBN)"=RHBN,"Real-Time"=REAL_TIME,"Contributor"=CONTRIBUTOR,"Operator"=OPERATOR,"Regional Office"=REGIONAL_OFFICE,
              "Regulated"=regulated)
   }) 
   
-  output$allstationsTable <- DT::renderDataTable(allstationsTable(), selection=list(mode="single")) 
+  output$allstationsTable <- DT::renderDataTable(allstationsTable(), rownames=FALSE,selection=list(mode="single")) 
   
 }
 
