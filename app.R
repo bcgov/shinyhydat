@@ -180,6 +180,8 @@ server <- function(input, output, session) {
              "Latitude"=LATITUDE,"Longitude"=LONGITUDE,"Drainage Area (sq km)"=DRAINAGE_AREA_GROSS,"Reference (RHBN)"=RHBN,"Real-Time"=REAL_TIME,
              "Regional Office"=REGIONAL_OFFICE,"Contributor"=CONTRIBUTOR,"Operator"=OPERATOR,"Datum"=DATUM,"Regulated"=regulated) %>% 
       gather("header","content",1:16)
+    stn.info[is.na(stn.info)] <- ""
+    stn.info
   })
   
   # Rander table for output
