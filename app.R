@@ -12,9 +12,6 @@
 
 
 
-
-# This code utilizes the HYDAT R package (D. Hutchinson (ECCC), https://github.com/CentreForHydrology/HYDAT) to extract data from the HYDAT database
-
 ### Shiny App Script ###
 ########################
 
@@ -23,28 +20,23 @@ library(shinydashboard)
 library(ggplot2)
 library(dplyr) ## >0.7.0 dplyr
 library(tidyr)
-library(HYDAT)
-library(RSQLite)
 library(leaflet)
-library(DBI)
 library(tidyhydat)
 
-
-#####  Set File Pathways #####
 
 ### Set path to HYDAT
 HYDAT.path <- "Hydat.sqlite3" 
 
-## Create a list of all stations in BC
+## Create a dataframe of all station metadata and a list of all stations
 stations <- STATIONS(HYDAT.path,
-                       PROV_TERR_STATE_LOC = "BC") %>%
+                     PROV_TERR_STATE_LOC = "BC") %>%
   left_join(AGENCY_LIST(HYDAT.path), by = c("CONTRIBUTOR_ID" = "AGENCY_ID")) %>% rename("CONTRIBUTOR"=AGENCY_EN) %>% 
   left_join(AGENCY_LIST(HYDAT.path), by = c("OPERATOR_ID" = "AGENCY_ID")) %>%  rename("OPERATOR"=AGENCY_EN) %>% 
   left_join(DATUM_LIST(HYDAT.path), by = c("DATUM_ID" = "DATUM_ID")) %>% rename("DATUM"=DATUM_EN) %>% 
   mutate(REGIONAL_OFFICE_ID = as.integer(REGIONAL_OFFICE_ID)) %>% 
   left_join(REGIONAL_OFFICE_LIST(HYDAT.path), by = c("REGIONAL_OFFICE_ID" = "REGIONAL_OFFICE_ID")) %>% rename("REGIONAL_OFFICE"=REGIONAL_OFFICE_NAME_EN) %>% 
-  select(STATION_NUMBER,STATION_NAME,PROV_TERR_STATE_LOC,HYD_STATUS,LATITUDE,LONGITUDE,DRAINAGE_AREA_GROSS,RHBN,REAL_TIME,CONTRIBUTOR,OPERATOR,REGIONAL_OFFICE,DATUM)
-
+  left_join(STN_REGULATION(HYDAT.path,PROV_TERR_STATE_LOC = "BC"), by="STATION_NUMBER") %>% 
+  select(STATION_NUMBER,STATION_NAME,PROV_TERR_STATE_LOC,HYD_STATUS,LATITUDE,LONGITUDE,DRAINAGE_AREA_GROSS,RHBN,REAL_TIME,REGULATED,CONTRIBUTOR,OPERATOR,REGIONAL_OFFICE,DATUM)
 stations.list <- as.list(stations$STATION_NUMBER)
 
 
@@ -64,7 +56,7 @@ ui <- dashboardPage(
     tabBox("TITLE",width = 12,
            tabPanel("Station Listings",
                     fluidRow(column(width = 8,
-                    helpText("Search for a station by entering all or part of a station name, number, or other categories. To view station information and hydrometric data, click on the row and view the other tabs. To search by map, go to the 'Stations Map' tab and click on the marker of your desired station. Each map or table selection will replace the previous selection."))),
+                                    helpText("Search for a station by entering all or part of a station name, number, or other categories. To view station information and hydrometric data, click on the row and view the other tabs. To search by map, go to the 'Stations Map' tab and click on the marker of your desired station. Each map or table selection will replace the previous selection."))),
                     br(),
                     DT::dataTableOutput("allstationsTable")
                     
@@ -80,7 +72,7 @@ ui <- dashboardPage(
                     fluidRow(column(width = 5,tableOutput("metaTable")),
                              column(width = 7,box(width=15,background="light-blue",
                                                   leafletOutput("stnmap")
-                                                  )))),
+                             )))),
            tabPanel("Historical Data",
                     selectInput("histView",label="Historical data type to view:",choices = list("Long-term","Annual","Monthly", "Daily","Instantaneous Extremes")),
                     # Historical Long-term
@@ -90,7 +82,7 @@ ui <- dashboardPage(
                       column(6, uiOutput("dateRange")),
                       column(3, checkboxInput("ltlog", label = "Plot Discharge axis on log scale", value= FALSE)),
                       column(3, downloadButton('download.ltData', 'Download Data'),
-                                downloadButton('download.ltPlot', 'Download Plot')),
+                             downloadButton('download.ltPlot', 'Download Plot')),
                       column(11, br()),
                       plotOutput('ltplot')),
                     # Historical Annual
@@ -101,11 +93,11 @@ ui <- dashboardPage(
                       column(3, checkboxGroupInput("annualChecks", label = "Statistics", choices=list("Mean","Median","Maximum","Minimum"),selected = c("Mean","Median","Maximum","Minimum"))),
                       column(6, checkboxInput("annuallog", label = "Plot Discharge axis on log scale", value= FALSE)),
                       column(3, downloadButton('download.annualData', 'Download Data'),
-                                downloadButton('download.annualPlot', 'Download Plot')),
+                             downloadButton('download.annualPlot', 'Download Plot')),
                       plotOutput('annualPlot'),
                       h5("* Only years with complete data shown")#,
-                     # tableOutput("annualTable")
-                      ),
+                      # tableOutput("annualTable")
+                    ),
                     # Historical Monthly
                     conditionalPanel(
                       condition = "input.histView == 'Monthly'",
@@ -131,7 +123,7 @@ ui <- dashboardPage(
                       h4("instantaneous extreme data coming soon!"),
                       h5("Including max and min")
                     )
-                    ),
+           ),
            tabPanel("Real-time Data",
                     br(),
                     column(6, textOutput("noRT"), uiOutput("dateRangeRT")),
@@ -155,7 +147,7 @@ server <- function(input, output, session) {
   ######################
   output$stnSelect <- renderUI({
     selectizeInput("station", label = "Select or type your hydrometric station ID number:",choices = stations.list,options = list(placeholder ="type station ID number",maxOptions = 2420 ), selected=allstationsTable()[input$allstationsTable_rows_selected,1])
-    })
+  })
   
   
   ### MetaData ###
@@ -166,19 +158,17 @@ server <- function(input, output, session) {
     
     stn.meta.HYDAT <- stations %>% filter(STATION_NUMBER==input$station)#input$station)
     
-    # will replace with tidyhydat
-    db.con <- dbConnect(RSQLite::SQLite(), HYDAT.path)
-    stn.reg.HYDAT <- StationRegulation(con = db.con, station_number=input$station) %>% rename("STATION_NUMBER"= station_number)#input$station)#input$station)#"08HB048"
-    dbDisconnect(db.con)
-    #
-    
-    stn.info <- merge(stn.meta.HYDAT, stn.reg.HYDAT[,c(1,4)], by= "STATION_NUMBER") %>% 
+    stn.info <- stn.meta.HYDAT %>% 
       mutate("Historical Data Link"=paste0("https://wateroffice.ec.gc.ca/report/historical_e.html?stn=",STATION_NUMBER),
-             "Real-Time Data Link"=ifelse(REAL_TIME==TRUE, paste0("https://wateroffice.ec.gc.ca/report/real_time_e.html?stn=",STATION_NUMBER),"No real-time data available.")) %>% 
+             "Real-Time Data Link"=ifelse(REAL_TIME==TRUE, paste0("https://wateroffice.ec.gc.ca/report/real_time_e.html?stn=",STATION_NUMBER),"No real-time data available."),
+             DRAINAGE_AREA_GROSS=round(DRAINAGE_AREA_GROSS,2),
+             LATITUDE=round(LATITUDE,6),
+             LONGITUDE=round(LONGITUDE,6)) %>% 
       rename("Station Number"=STATION_NUMBER,"Station Name" =STATION_NAME,"Prov/Terr/State"=PROV_TERR_STATE_LOC,"Station Status"=HYD_STATUS,
              "Latitude"=LATITUDE,"Longitude"=LONGITUDE,"Drainage Area (sq km)"=DRAINAGE_AREA_GROSS,"Reference (RHBN)"=RHBN,"Real-Time"=REAL_TIME,
-             "Regional Office"=REGIONAL_OFFICE,"Contributor"=CONTRIBUTOR,"Operator"=OPERATOR,"Datum"=DATUM,"Regulated"=regulated) %>% 
+             "Regulation"=REGULATED,"Regional Office"=REGIONAL_OFFICE,"Contributor"=CONTRIBUTOR,"Operator"=OPERATOR,"Datum"=DATUM) %>% 
       gather("header","content",1:16)
+    
     stn.info[is.na(stn.info)] <- ""
     stn.info
   })
@@ -189,7 +179,7 @@ server <- function(input, output, session) {
   
   output$stnmap <- renderLeaflet({
     leaflet(stations) %>% addTiles() %>%
-      setView(lng = metaData()[6,2], lat = metaData()[5,2], zoom = 9) %>% # set centre and extent of map
+      setView(lng = as.numeric(metaData()[6,2]), lat = as.numeric(metaData()[5,2]), zoom = 9) %>% # set centre and extent of map
       addCircleMarkers(data = filter(stations, STATION_NUMBER %in% input$station), ~LONGITUDE, ~LATITUDE, color = "red", radius = 6) %>%
       addCircles(lng = ~LONGITUDE, lat = ~LATITUDE, weight = 1,
                  radius = 1, label = ~STATION_NAME, 
@@ -205,12 +195,13 @@ server <- function(input, output, session) {
   
   # Extract historical data from HYDAT and determine the start and end dates for clipping
   histDates <- reactive({
-
+    
     daily.flow.HYDAT <- DLY_FLOWS(hydat_path = HYDAT.path, STATION_NUMBER=input$station)
-
+    
     daily.flow.dates <- daily.flow.HYDAT[,c(2,4)] %>% 
       summarize(minDate=min(Date),
                 maxDate=max(Date))
+    
   })
   
   
@@ -228,7 +219,7 @@ server <- function(input, output, session) {
     max.date <- as.Date((paste((as.numeric(format(max(flow.data$Date),'%Y'))),12,31,sep="-")),"%Y-%m-%d")
     flow.data.empty <- data.frame(Date=seq(min.date, max.date, by="days"))
     flow.data <- merge(flow.data.empty,flow.data,by="Date",all = TRUE)
-
+    
     flow.data= flow.data[flow.data$Date  >=input$date.range[1] & flow.data$Date <= input$date.range[2],]
   })
   
@@ -287,7 +278,7 @@ server <- function(input, output, session) {
   # output$annualTable <- renderTable(annualData(),colnames = TRUE)
   
   # Plot reactive data and render for plotting
-    annualPlot <- function(){
+  annualPlot <- function(){
     validate(
       need(annualData(),"NOT AVAILABLE")
     )
@@ -401,7 +392,7 @@ server <- function(input, output, session) {
   
   # Extract historical data from HYDAT and determine the start and end dates for clipping
   realtimeDates <- reactive({
-
+    
     realtime.HYDAT <- download_realtime_dd(STATION_NUMBER = input$station,PROV_TERR_STATE_LOC = metaData()[3,2])
     
     real.timeDates <- as.data.frame(realtime.HYDAT[,2])
@@ -415,9 +406,9 @@ server <- function(input, output, session) {
   
   # Extract real-time data from webslink and clip to dates
   realtimeData <- reactive({ 
-
+    
     realtime.HYDAT <- download_realtime_dd(STATION_NUMBER = input$station,PROV_TERR_STATE_LOC = metaData()[3,2])
-
+    
     real.time <- realtime.HYDAT[,c(2:4)] %>% spread(Parameter,Value)
     colnames(real.time) <- c("DateTime","Discharge","Water Level")
     real.time$Date <- as.Date(real.time$DateTime,"%Y-%m-%d")
@@ -456,13 +447,13 @@ server <- function(input, output, session) {
     leaflet(stations) %>% addTiles() %>%
       #setView(lng = -125, lat = 54, zoom = 5) # set centre and extent of map
       addCircleMarkers(data= filter(stations, HYD_STATUS=="ACTIVE"), lng = ~LONGITUDE, lat = ~LATITUDE, layerId = ~STATION_NUMBER, color = "blue", radius = 2,
-                 group="Active",
-                 label = ~paste0(STATION_NAME, " (",STATION_NUMBER,")")) %>% #,
-                 #popup = ~paste(STATION_NAME, "<br>", STATION_NUMBER, "<br>","DRAINAGE AREA = ",DRAINAGE_AREA_GROSS, "SQ. KM", "<br>",ifelse(HYD_STATUS=="A","ACTIVE","DISCONTINUED"),"<br>")) %>%
+                       group="Active",
+                       label = ~paste0(STATION_NAME, " (",STATION_NUMBER,")")) %>% #,
+      #popup = ~paste(STATION_NAME, "<br>", STATION_NUMBER, "<br>","DRAINAGE AREA = ",DRAINAGE_AREA_GROSS, "SQ. KM", "<br>",ifelse(HYD_STATUS=="A","ACTIVE","DISCONTINUED"),"<br>")) %>%
       addCircleMarkers(data= filter(stations, HYD_STATUS=="DISCONTINUED"), lng = ~LONGITUDE, lat = ~LATITUDE, layerId = ~STATION_NUMBER, color = "red", radius = 2,
-                 group="Discontinued",
-                 label = ~paste0(STATION_NAME, " (",STATION_NUMBER,")")) %>% #,
-                 #popup = ~paste(STATION_NAME, "<br>", STATION_NUMBER, "<br>","DRAINAGE AREA = ",DRAINAGE_AREA_GROSS, "SQ. KM", "<br>",ifelse(HYD_STATUS=="A","ACTIVE","DISCONTINUED"),"<br>")) %>%
+                       group="Discontinued",
+                       label = ~paste0(STATION_NAME, " (",STATION_NUMBER,")")) %>% #,
+      #popup = ~paste(STATION_NAME, "<br>", STATION_NUMBER, "<br>","DRAINAGE AREA = ",DRAINAGE_AREA_GROSS, "SQ. KM", "<br>",ifelse(HYD_STATUS=="A","ACTIVE","DISCONTINUED"),"<br>")) %>%
       addCircleMarkers(data = filter(stations, STATION_NUMBER %in% input$station), ~LONGITUDE, ~LATITUDE, color = "green", radius = 6) %>% 
       addLayersControl(position="topright",
                        overlayGroups = c("Active","Discontinued"),
@@ -479,7 +470,7 @@ server <- function(input, output, session) {
   ### Reactive Widgets ###
   ########################
   
-
+  
   
   # Structure to download real-time CSV file, only works if opened in browser
   output$download.rtData <- downloadHandler(
@@ -516,15 +507,11 @@ server <- function(input, output, session) {
     
     stn.meta.HYDAT <- stations %>% filter(STATION_NUMBER==stations.list)#input$station)
     
-    # will replace with tidyhydat
-    db.con <- dbConnect(RSQLite::SQLite(), HYDAT.path)
-    stn.reg.HYDAT <- StationRegulation(con = db.con, station_number=stations.list) %>% rename("STATION_NUMBER"= station_number)
-    dbDisconnect(db.con)
-    
-    stn.info <- merge(stn.meta.HYDAT[,c(1:4,7:12)],stn.reg.HYDAT[,c(1,4)], by= "STATION_NUMBER") %>% 
+    stn.info <-stn.meta.HYDAT[,c(1:4,7:13)] %>% 
+      mutate(DRAINAGE_AREA_GROSS=round(DRAINAGE_AREA_GROSS,2)) %>% 
       rename("Station Number"=STATION_NUMBER,"Station Name" =STATION_NAME,"Prov/ Terr/ State"=PROV_TERR_STATE_LOC,"Station Status"=HYD_STATUS,
              "Drainage Area (sq km)"=DRAINAGE_AREA_GROSS,"Reference (RHBN)"=RHBN,"Real-Time"=REAL_TIME,"Contributor"=CONTRIBUTOR,"Operator"=OPERATOR,"Regional Office"=REGIONAL_OFFICE,
-             "Regulated"=regulated)
+             "Regulation"=REGULATED)
   }) 
   
   output$allstationsTable <- DT::renderDataTable(allstationsTable(), rownames=FALSE,selection=list(mode="single")) 
