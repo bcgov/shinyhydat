@@ -37,7 +37,6 @@ HYDAT.path <- "Hydat.sqlite3"
 
 ## Create a list of all stations in BC
 stations <- STATIONS(HYDAT.path,
-                       STATION_NUMBER = "ALL",
                        PROV_TERR_STATE_LOC = "BC") %>%
   left_join(AGENCY_LIST(HYDAT.path), by = c("CONTRIBUTOR_ID" = "AGENCY_ID")) %>% rename("CONTRIBUTOR"=AGENCY_EN) %>% 
   left_join(AGENCY_LIST(HYDAT.path), by = c("OPERATOR_ID" = "AGENCY_ID")) %>%  rename("OPERATOR"=AGENCY_EN) %>% 
@@ -207,7 +206,7 @@ server <- function(input, output, session) {
   # Extract historical data from HYDAT and determine the start and end dates for clipping
   histDates <- reactive({
 
-    daily.flow.HYDAT <- DLY_FLOWS(hydat_path = HYDAT.path,PROV_TERR_STATE_LOC =metaData()[3,2], STATION_NUMBER=input$station)
+    daily.flow.HYDAT <- DLY_FLOWS(hydat_path = HYDAT.path, STATION_NUMBER=input$station)
 
     daily.flow.dates <- daily.flow.HYDAT[,c(2,4)] %>% 
       summarize(minDate=min(Date),
@@ -220,7 +219,7 @@ server <- function(input, output, session) {
   # Get daily data from HYDAT, fill in missing days, and clip to dates
   histData <- reactive({
     
-    daily.flow.HYDAT <- DLY_FLOWS(hydat_path = HYDAT.path,PROV_TERR_STATE_LOC =metaData()[3,2], STATION_NUMBER=input$station)
+    daily.flow.HYDAT <- DLY_FLOWS(hydat_path = HYDAT.path, STATION_NUMBER=input$station)
     
     flow.data <- daily.flow.HYDAT[,c(2:5)]
     colnames(flow.data) <- c("Date", "Parameter","Discharge","Symbol")
