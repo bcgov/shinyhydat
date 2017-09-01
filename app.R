@@ -29,7 +29,7 @@ HYDAT.path <- "Hydat.sqlite3"
 
 ## Create a dataframe of all station metadata and a list of all stations
 stations <- STATIONS(HYDAT.path,
-                     PROV_TERR_STATE_LOC = c("AB","BC","SK","MB","ON","QC","NB","NS","PE","NL","YT","NT","NU")) %>%  #c("AB","BC","SK","MB","ON","QC","NB","NS","PE","NL","YT","NT","NU")
+                     PROV_TERR_STATE_LOC = "BC") %>%  #c("AB","BC","SK","MB","ON","QC","NB","NS","PE","NL","YT","NT","NU")
   left_join(AGENCY_LIST(HYDAT.path), by = c("CONTRIBUTOR_ID" = "AGENCY_ID")) %>% rename("CONTRIBUTOR"=AGENCY_EN) %>% 
   left_join(AGENCY_LIST(HYDAT.path), by = c("OPERATOR_ID" = "AGENCY_ID")) %>%  rename("OPERATOR"=AGENCY_EN) %>% 
   left_join(DATUM_LIST(HYDAT.path), by = c("DATUM_ID" = "DATUM_ID")) %>% rename("DATUM"=DATUM_EN) %>% 
@@ -63,10 +63,15 @@ ui <- dashboardPage(
     tabBox("TITLE",width = 12,
            tabPanel("Station Listings",
                     fluidRow(column(width = 8,
-                                    helpText("Search for a station by entering all or part of a station name, number, or other categories. To view station information and hydrometric data, click on the row and view the other tabs. To search by map, go to the 'Stations Map' tab and click on the marker of your desired station. Each map or table selection will replace the previous selection. To download the table below, including any filters, click the 'Download Filtered Table' button to the right.")),
+                                    helpText("Search for a station by entering all or part of a station name, number, or other categories. To view station information and hydrometric data, click on the row and view the other tabs. To search by map, go to the 'Stations Map' tab and click on the marker of your desired station. Each map or table selection will replace the previous selection."),
+                                    helpText("The table below (filtered or not) can be downloaded as a .csv file with the download button the right. To display stations listed below (filtered or not) on the 'Stations Map' tab, click the button to the right. To clear any filters on the map, clear all filters in the table and re-click the button.")
+                                    
+                                    ),
                              column(width = 2),
                              column(width=2,
-                                    downloadButton('download.stations', 'Download Filtered Table'))),
+                                    downloadButton('download.stations', 'Download Filtered Table'),br(),br(),
+                                    actionButton('stationsMapAdd', 'Show Filtered Stations on Map')
+                                    )),
                     br(),
                     DT::dataTableOutput("allstationsTable")
                     
@@ -469,18 +474,9 @@ server <- function(input, output, session) {
   output$map <- renderLeaflet({
     leaflet(stations) %>% addTiles() %>%
       #setView(lng = -125, lat = 54, zoom = 5) # set centre and extent of map
-      addCircleMarkers(data= filter(stations, HYD_STATUS=="ACTIVE"), lng = ~LONGITUDE, lat = ~LATITUDE, layerId = ~STATION_NUMBER, color = "blue", radius = 2,
+      addCircleMarkers(data= stations, lng = ~LONGITUDE, lat = ~LATITUDE, layerId = ~STATION_NUMBER, color = "blue", radius = 2,
                        group="Active",
-                       label = ~paste0(STATION_NAME, " (",STATION_NUMBER,")")) %>% #,
-      #popup = ~paste(STATION_NAME, "<br>", STATION_NUMBER, "<br>","DRAINAGE AREA = ",DRAINAGE_AREA_GROSS, "SQ. KM", "<br>",ifelse(HYD_STATUS=="A","ACTIVE","DISCONTINUED"),"<br>")) %>%
-      addCircleMarkers(data= filter(stations, HYD_STATUS=="DISCONTINUED"), lng = ~LONGITUDE, lat = ~LATITUDE, layerId = ~STATION_NUMBER, color = "red", radius = 2,
-                       group="Discontinued",
-                       label = ~paste0(STATION_NAME, " (",STATION_NUMBER,")")) %>% #,
-      #popup = ~paste(STATION_NAME, "<br>", STATION_NUMBER, "<br>","DRAINAGE AREA = ",DRAINAGE_AREA_GROSS, "SQ. KM", "<br>",ifelse(HYD_STATUS=="A","ACTIVE","DISCONTINUED"),"<br>")) %>%
-      addLayersControl(position="topright",
-                       overlayGroups = c("Active","Discontinued"),
-                       options = layersControlOptions(collapsed=FALSE)) %>% 
-      hideGroup("Discontinued")
+                       label = ~paste0(STATION_NAME, " (",STATION_NUMBER,") - ",HYD_STATUS))
     
   })
   
@@ -491,9 +487,19 @@ server <- function(input, output, session) {
       addCircleMarkers(layerId="selected",data = filter(stations, STATION_NUMBER %in% input$station), ~LONGITUDE, ~LATITUDE, color = "green", radius = 6)
   })
   
+  
   # Updates the selection station by clicking on the marker
   observeEvent(input$map_marker_click, { # update the location selectInput on map clicks
     updateSelectizeInput(session, "station", selected=input$map_marker_click$id)
+  })
+  
+  
+  observeEvent(input$stationsMapAdd, {
+    leafletProxy("map") %>%
+      clearMarkers() %>%
+      clearControls() %>% 
+      addCircleMarkers(data= downloadStationsList(), lng = ~LONGITUDE, lat = ~LATITUDE, layerId = ~STATION_NUMBER, color = "blue", radius = 2,
+                       label = ~paste0(STATION_NAME, " (",STATION_NUMBER,")"))    
   })
   
   ### Reactive Widgets ###
