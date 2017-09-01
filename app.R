@@ -50,13 +50,22 @@ ui <- dashboardPage(
     br(),
     hr(),
     h5("This app extracts hydrometric discharge data from the HYDAT database and displays station metadata, historical data, and real-time data, if available. A locally saved SQLite HYDAT database file is required."),
-    br()
+    br(),
+    h4("HYDAT versions:"),
+    textOutput("localHYDAT"),
+    textOutput("onlineHYDAT")#,
+    #tags$head(tags$script(src = "message-handler.js")),
+    #actionButton("downloadHYDAT",label="Download latest HYDAT")
+    
   ),
   dashboardBody(
     tabBox("TITLE",width = 12,
            tabPanel("Station Listings",
                     fluidRow(column(width = 8,
-                                    helpText("Search for a station by entering all or part of a station name, number, or other categories. To view station information and hydrometric data, click on the row and view the other tabs. To search by map, go to the 'Stations Map' tab and click on the marker of your desired station. Each map or table selection will replace the previous selection."))),
+                                    helpText("Search for a station by entering all or part of a station name, number, or other categories. To view station information and hydrometric data, click on the row and view the other tabs. To search by map, go to the 'Stations Map' tab and click on the marker of your desired station. Each map or table selection will replace the previous selection.")),
+                             column(width = 2),
+                             column(width=2,
+                                    downloadButton('download.stations', 'Download Filtered Table'))),
                     br(),
                     DT::dataTableOutput("allstationsTable")
                     
@@ -142,6 +151,25 @@ ui <- dashboardPage(
 
 # Set up the server (where all the magic happens)
 server <- function(input, output, session) {
+  
+  #### HYDAT VERSION
+  
+  output$onlineHYDAT <- renderText({
+    paste0("Available: ",as.Date(substr(gsub("^.*\\Hydat_sqlite3_","",RCurl::getURL("http://collaboration.cmc.ec.gc.ca/cmc/hydrometrics/www/")), 1,8), "%Y%m%d"))
+    
+  })
+  output$localHYDAT <- renderText({
+    paste0("Current: ",as.Date(as.data.frame(VERSION(HYDAT.path))[,2]))
+    
+  })
+  
+ # observeEvent(input$downloadHYDAT, {
+ #     session$sendCustomMessage(type = 'testmessage',
+ #                               message = 'Thank you for clicking')
+    
+ # })
+
+  
   
   ### Select station ###
   ######################
@@ -514,7 +542,22 @@ server <- function(input, output, session) {
              "Regulation"=REGULATED)
   }) 
   
-  output$allstationsTable <- DT::renderDataTable(allstationsTable(), rownames=FALSE,selection=list(mode="single")) 
+  output$allstationsTable <- DT::renderDataTable(allstationsTable(), rownames=FALSE,selection=list(mode="single"),filter = 'top') 
+  
+  ########### download table of stations
+  downloadStationsList <- reactive({
+        list <- stations %>% 
+          mutate(row=c(1:(n()))) %>% 
+          filter(row %in% input$allstationsTable_rows_all) %>% 
+          select(-row)
+        list
+  })
+  output$download.stations <- downloadHandler(
+    filename = function() {paste0("Stations_list.csv")},
+    content = function(file) {
+      write.csv(downloadStationsList(),file, row.names = FALSE, na="")
+    })
+  
   
 }
 
