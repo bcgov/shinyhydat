@@ -35,7 +35,7 @@ stations <- STATIONS(HYDAT.path,
   left_join(DATUM_LIST(HYDAT.path), by = c("DATUM_ID" = "DATUM_ID")) %>% rename("DATUM"=DATUM_EN) %>% 
   mutate(REGIONAL_OFFICE_ID = as.integer(REGIONAL_OFFICE_ID)) %>% 
   left_join(REGIONAL_OFFICE_LIST(HYDAT.path), by = c("REGIONAL_OFFICE_ID" = "REGIONAL_OFFICE_ID")) %>% rename("REGIONAL_OFFICE"=REGIONAL_OFFICE_NAME_EN) %>% 
-  left_join(STN_REGULATION(HYDAT.path,PROV_TERR_STATE_LOC = "BC"), by="STATION_NUMBER") %>% 
+  left_join(STN_REGULATION(HYDAT.path), by="STATION_NUMBER") %>% 
   select(STATION_NUMBER,STATION_NAME,PROV_TERR_STATE_LOC,HYD_STATUS,LATITUDE,LONGITUDE,DRAINAGE_AREA_GROSS,RHBN,REAL_TIME,REGULATED,CONTRIBUTOR,OPERATOR,REGIONAL_OFFICE,DATUM)
 stations.list <- as.list(stations$STATION_NUMBER)
 
@@ -49,7 +49,8 @@ ui <- dashboardPage(
       br(),
       uiOutput("stnSelect"),
       hr(),
-      h5("This app extracts hydrometric discharge data from the HYDAT database and displays station metadata, historical data, and real-time data, if available. A locally saved SQLite HYDAT database file is required."),
+      h5("About:"),
+      h5("This app extracts hydrometric discharge (and water level*) data from the HYDAT database and displays station metadata, historical data, and real-time data, if available. A locally saved SQLite HYDAT database file is required."),
       br(),
       h4("HYDAT versions:"),
       textOutput("localHYDAT"),
