@@ -29,7 +29,7 @@ HYDAT.path <- "Hydat.sqlite3"
 
 ## Create a dataframe of all station metadata and a list of all stations
 stations <- STATIONS(HYDAT.path,
-                     PROV_TERR_STATE_LOC = "BC") %>%
+                     PROV_TERR_STATE_LOC = c("AB","BC","SK","MB","ON","QC","NB","NS","PE","NL","YT","NT","NU")) %>%  #c("AB","BC","SK","MB","ON","QC","NB","NS","PE","NL","YT","NT","NU")
   left_join(AGENCY_LIST(HYDAT.path), by = c("CONTRIBUTOR_ID" = "AGENCY_ID")) %>% rename("CONTRIBUTOR"=AGENCY_EN) %>% 
   left_join(AGENCY_LIST(HYDAT.path), by = c("OPERATOR_ID" = "AGENCY_ID")) %>%  rename("OPERATOR"=AGENCY_EN) %>% 
   left_join(DATUM_LIST(HYDAT.path), by = c("DATUM_ID" = "DATUM_ID")) %>% rename("DATUM"=DATUM_EN) %>% 
@@ -45,24 +45,24 @@ stations.list <- as.list(stations$STATION_NUMBER)
 ui <- dashboardPage(
   dashboardHeader(title="HYDAT Data Viewer"),
   dashboardSidebar(
-    br(),
-    uiOutput("stnSelect"),
-    br(),
-    hr(),
-    h5("This app extracts hydrometric discharge data from the HYDAT database and displays station metadata, historical data, and real-time data, if available. A locally saved SQLite HYDAT database file is required."),
-    br(),
-    h4("HYDAT versions:"),
-    textOutput("localHYDAT"),
-    textOutput("onlineHYDAT")#,
-    #tags$head(tags$script(src = "message-handler.js")),
-    #actionButton("downloadHYDAT",label="Download latest HYDAT")
+    fluidPage(
+      br(),
+      uiOutput("stnSelect"),
+      hr(),
+      h5("This app extracts hydrometric discharge data from the HYDAT database and displays station metadata, historical data, and real-time data, if available. A locally saved SQLite HYDAT database file is required."),
+      br(),
+      h4("HYDAT versions:"),
+      textOutput("localHYDAT"),
+      textOutput("onlineHYDAT")
+    )
+    
     
   ),
   dashboardBody(
     tabBox("TITLE",width = 12,
            tabPanel("Station Listings",
                     fluidRow(column(width = 8,
-                                    helpText("Search for a station by entering all or part of a station name, number, or other categories. To view station information and hydrometric data, click on the row and view the other tabs. To search by map, go to the 'Stations Map' tab and click on the marker of your desired station. Each map or table selection will replace the previous selection.")),
+                                    helpText("Search for a station by entering all or part of a station name, number, or other categories. To view station information and hydrometric data, click on the row and view the other tabs. To search by map, go to the 'Stations Map' tab and click on the marker of your desired station. Each map or table selection will replace the previous selection. To download the table below, including any filters, click the 'Download Filtered Table' button to the right.")),
                              column(width = 2),
                              column(width=2,
                                     downloadButton('download.stations', 'Download Filtered Table'))),
@@ -159,16 +159,10 @@ server <- function(input, output, session) {
     
   })
   output$localHYDAT <- renderText({
-    paste0("Current: ",as.Date(as.data.frame(VERSION(HYDAT.path))[,2]))
+    paste0("Local: ",as.Date(as.data.frame(VERSION(HYDAT.path))[,2]))
     
   })
   
- # observeEvent(input$downloadHYDAT, {
- #     session$sendCustomMessage(type = 'testmessage',
- #                               message = 'Thank you for clicking')
-    
- # })
-
   
   
   ### Select station ###
@@ -482,7 +476,6 @@ server <- function(input, output, session) {
                        group="Discontinued",
                        label = ~paste0(STATION_NAME, " (",STATION_NUMBER,")")) %>% #,
       #popup = ~paste(STATION_NAME, "<br>", STATION_NUMBER, "<br>","DRAINAGE AREA = ",DRAINAGE_AREA_GROSS, "SQ. KM", "<br>",ifelse(HYD_STATUS=="A","ACTIVE","DISCONTINUED"),"<br>")) %>%
-      addCircleMarkers(data = filter(stations, STATION_NUMBER %in% input$station), ~LONGITUDE, ~LATITUDE, color = "green", radius = 6) %>% 
       addLayersControl(position="topright",
                        overlayGroups = c("Active","Discontinued"),
                        options = layersControlOptions(collapsed=FALSE)) %>% 
@@ -490,7 +483,14 @@ server <- function(input, output, session) {
     
   })
   
+  # Allows the selection of different stations without redrawing the map
+  observe({
+    leafletProxy("map") %>%
+      removeMarker(layerId="selected") %>%
+      addCircleMarkers(layerId="selected",data = filter(stations, STATION_NUMBER %in% input$station), ~LONGITUDE, ~LATITUDE, color = "green", radius = 6)
+  })
   
+  # Updates the selection station by clicking on the marker
   observeEvent(input$map_marker_click, { # update the location selectInput on map clicks
     updateSelectizeInput(session, "station", selected=input$map_marker_click$id)
   })
@@ -546,14 +546,14 @@ server <- function(input, output, session) {
   
   ########### download table of stations
   downloadStationsList <- reactive({
-        list <- stations %>% 
-          mutate(row=c(1:(n()))) %>% 
-          filter(row %in% input$allstationsTable_rows_all) %>% 
-          select(-row)
-        list
+    list <- stations %>% 
+      mutate(row=c(1:(n()))) %>% 
+      filter(row %in% input$allstationsTable_rows_all) %>% 
+      select(-row)
+    list
   })
   output$download.stations <- downloadHandler(
-    filename = function() {paste0("Stations_list.csv")},
+    filename = function() {paste0("Stations_Table.csv")},
     content = function(file) {
       write.csv(downloadStationsList(),file, row.names = FALSE, na="")
     })
