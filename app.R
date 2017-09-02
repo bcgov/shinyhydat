@@ -475,7 +475,6 @@ server <- function(input, output, session) {
     leaflet(stations) %>% addTiles() %>%
       #setView(lng = -125, lat = 54, zoom = 5) # set centre and extent of map
       addCircleMarkers(data= stations, lng = ~LONGITUDE, lat = ~LATITUDE, layerId = ~STATION_NUMBER, color = "blue", radius = 2,
-                       group="Active",
                        label = ~paste0(STATION_NAME, " (",STATION_NUMBER,") - ",HYD_STATUS))
     
   })
@@ -499,7 +498,7 @@ server <- function(input, output, session) {
       clearMarkers() %>%
       clearControls() %>% 
       addCircleMarkers(data= downloadStationsList(), lng = ~LONGITUDE, lat = ~LATITUDE, layerId = ~STATION_NUMBER, color = "blue", radius = 2,
-                       label = ~paste0(STATION_NAME, " (",STATION_NUMBER,")"))    
+                       label = ~paste0(STATION_NAME, " (",STATION_NUMBER,") - ",HYD_STATUS))
   })
   
   ### Reactive Widgets ###
