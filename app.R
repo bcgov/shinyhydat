@@ -421,9 +421,9 @@ server <- function(input, output, session) {
   # Extract historical data from HYDAT and determine the start and end dates for clipping
   realtimeDates <- reactive({
     
-    realtime.HYDAT <- download_realtime_dd(STATION_NUMBER = input$station,PROV_TERR_STATE_LOC = metaData()[3,2])
-    
-    real.timeDates <- as.data.frame(realtime.HYDAT[,2])
+    realtime.HYDAT <- download_realtime_dd(STATION_NUMBER = input$station)
+
+    real.timeDates <- as.data.frame(realtime.HYDAT[,3])
     colnames(real.timeDates) <- "DateTime"
     real.timeDates$Date <- as.Date(real.timeDates$DateTime,"%Y-%m-%d")
     
@@ -435,14 +435,15 @@ server <- function(input, output, session) {
   # Extract real-time data from webslink and clip to dates
   realtimeData <- reactive({ 
     
-    realtime.HYDAT <- download_realtime_dd(STATION_NUMBER = input$station,PROV_TERR_STATE_LOC = metaData()[3,2])
+    realtime.HYDAT <- download_realtime_dd(STATION_NUMBER = input$station)
     
-    real.time <- realtime.HYDAT[,c(2:4)] %>% spread(Parameter,Value)
+    real.time <- realtime.HYDAT[,c(3:5)] %>% spread(Parameter,Value)
     colnames(real.time) <- c("DateTime","Discharge","Water Level")
     real.time$Date <- as.Date(real.time$DateTime,"%Y-%m-%d")
     real.time <- as.data.frame(real.time[,c(4,1:3)])
     
     real.time= real.time[real.time$Date  >=input$date.rangeRT[1] & real.time$Date <= input$date.rangeRT[2],]
+    real.time
   })
   
   # Create ggplot function
