@@ -17,11 +17,11 @@
 
 library(shiny) # 1.0.3 shiny
 library(shinydashboard)
-library(ggplot2)
 library(dplyr) ## >0.7.0 dplyr
 library(tidyr)
 library(leaflet)
 library(tidyhydat)
+library(plotly)
 
 
 ### Set path to HYDAT
@@ -50,7 +50,7 @@ ui <- dashboardPage(
       uiOutput("stnSelect"),
       hr(),
       h5("About:"),
-      h5("This app extracts hydrometric discharge (and water level*) data from the HYDAT database and displays station metadata, historical data, and real-time data, if available. A locally saved SQLite HYDAT database file is required."),
+      h5("This app extracts hydrometric discharge and water level data from the HYDAT database and displays station metadata, historical data, and real-time data, if available. A locally saved SQLite HYDAT database file is required."),
       br(),
       h4("HYDAT versions:"),
       textOutput("localHYDAT"),
@@ -60,97 +60,151 @@ ui <- dashboardPage(
     
   ),
   dashboardBody(
-    tabBox("TITLE",width = 12,
-           tabPanel("Station Listings",
-                    fluidRow(column(width = 8,
-                                    helpText("Search for a station by entering all or part of a station name, number, or other categories. To view station information and hydrometric data, click on the row and view the other tabs. To search by map, go to the 'Stations Map' tab and click on the marker of your desired station. Each map or table selection will replace the previous selection."),
-                                    helpText("The table below (filtered or not) can be downloaded as a .csv file with the download button the right. To display stations listed below (filtered or not) on the 'Stations Map' tab, click the button to the right. To clear any filters on the map, clear all filters in the table and re-click the button.")
-                                    
-                                    ),
-                             column(width = 2),
-                             column(width=2,
-                                    downloadButton('download.stations', 'Download Filtered Table'),br(),br(),
-                                    actionButton('stationsMapAdd', 'Show Filtered Stations on Map')
-                                    )),
-                    br(),
-                    DT::dataTableOutput("allstationsTable")
-                    
-           ),
-           tabPanel("Stations Map",
-                    br(),
-                    tags$style(type = "text/css", "#map {height: calc(100vh - 170px) !important;}"),
-                    leafletOutput("map")
-           ),
-           tabPanel("Station Info",
-                    br(),
-                    h4("Station Information"),
-                    fluidRow(column(width = 5,tableOutput("metaTable")),
-                             column(width = 7,box(width=15,background="light-blue",
-                                                  leafletOutput("stnmap")
-                             )))),
-           tabPanel("Historical Data",
-                    selectInput("histView",label="Historical data type to view:",choices = list("Long-term","Annual","Monthly", "Daily","Instantaneous Extremes")),
-                    # Historical Long-term
-                    conditionalPanel(
-                      condition = "input.histView == 'Long-term'",
+    fluidPage(
+      tabBox("TITLE",width = 12,
+             tabPanel("Station Listings",
+                      fluidRow(column(width = 8,
+                                      helpText("Search for a station by entering all or part of a station name, number, or other categories. To view station information and hydrometric data, click on the row and view the other tabs. To search by map, go to the 'Stations Map' tab and click on the marker of your desired station. Each map or table selection will replace the previous selection."),
+                                      helpText("The table below (filtered or not) can be downloaded as a .csv file with the download button the right. To display stations listed below (filtered or not) on the 'Stations Map' tab, click the button to the right. To clear any filters on the map, clear all filters in the table and re-click the button.")),
+                               column(width=2,
+                                      downloadButton('download.stations', 'Download Filtered Table'),br(),br(),
+                                      actionButton('stationsMapAdd', 'Show Filtered Stations on Map')
+                               )),
                       br(),
-                      column(6, uiOutput("dateRange")),
-                      column(3, checkboxInput("ltlog", label = "Plot Discharge axis on log scale", value= FALSE)),
-                      column(3, downloadButton('download.ltData', 'Download Data'),
-                             downloadButton('download.ltPlot', 'Download Plot')),
-                      column(11, br()),
-                      plotOutput('ltplot')),
-                    # Historical Annual
-                    conditionalPanel(
-                      condition = "input.histView == 'Annual'",
-                      h3("under development"),
+                      DT::dataTableOutput("allstationsTable")
+                      
+             ),
+             tabPanel("Stations Map",
                       br(),
-                      column(3, checkboxGroupInput("annualChecks", label = "Statistics", choices=list("Mean","Median","Maximum","Minimum"),selected = c("Mean","Median","Maximum","Minimum"))),
-                      column(6, checkboxInput("annuallog", label = "Plot Discharge axis on log scale", value= FALSE)),
-                      column(3, downloadButton('download.annualData', 'Download Data'),
-                             downloadButton('download.annualPlot', 'Download Plot')),
-                      plotOutput('annualPlot'),
-                      h5("* Only years with complete data shown")#,
-                      # tableOutput("annualTable")
-                    ),
-                    # Historical Monthly
-                    conditionalPanel(
-                      condition = "input.histView == 'Monthly'",
-                      h3("under development"),
+                      fluidPage(column(width=8,box(width=12,background="light-blue",
+                                                   tags$style(type = "text/css", "#map {height: calc(100vh - 170px) !important;}"),
+                                                   leafletOutput("map"))),
+                                column(width=4,
+                                       box(width=12,title="Station Information",status = "primary",solidHeader = TRUE,
+                                           tableOutput("metaTable"))))
+             ),
+             tabPanel("Station Info",
                       br(),
-                      column(3, checkboxGroupInput("monthChecks", label = "Statistics", choices=list("Mean","Median","Maximum","Minimum","Upper Quartile","Lower Quartile"),selected = c("Mean","Median","Maximum","Minimum","Upper Quartile","Lower Quartile"))),
-                      column(6, checkboxInput("monthlog", label = "Plot Discharge axis on log scale", value= FALSE)),
-                      column(3, downloadButton('download.monthData', 'Download Data'),
-                             downloadButton('download.monthPlot', 'Download Plot')),
-                      plotOutput('monthPlot'),
-                      h5("* Missing dates ignored")#,
-                      #tableOutput("monthTable")
-                    ),
-                    conditionalPanel(
-                      condition = "input.histView == 'Daily'",
-                      br(),
-                      h4("Daily data coming soon!"),
-                      h5("Including daily means, medians, maxs and mins, and 25/27th percentiles")
-                    ),
-                    conditionalPanel(
-                      condition = "input.histView == 'Instantaneous Extremes'",
-                      br(),
-                      h4("instantaneous extreme data coming soon!"),
-                      h5("Including max and min")
-                    )
-           ),
-           tabPanel("Real-time Data",
-                    br(),
-                    column(6, textOutput("noRT"), uiOutput("dateRangeRT")),
-                    column(3, checkboxInput("logRT", label = "Plot Discharge axis on log scale", value= FALSE)),
-                    column(3, downloadButton('download.rtData', 'Download Data'),
-                           downloadButton('download.rtPlot', 'Download Plot')),
-                    column(11, br()),
-                    plotOutput('rtplot'))
+                      h4("Station Information"),
+                      fluidRow(column(width = 5),#tableOutput("metaTable")),
+                               column(width = 7,box(width=12,background="light-blue",
+                                                    leafletOutput("stnmap")
+                               )))),
+             tabPanel("Historical Data",
+                      fluidRow(column(width=4,selectInput("histView",label="Historical data type to view:",choices = list("Long-term","Annual","Monthly", "Daily"))),
+                               column(width=8,uiOutput("histYears"))),
+                      fluidPage(tags$hr()),
+                      # Historical Long-term
+                      conditionalPanel(
+                        condition = "input.histView == 'Long-term'",
+                        fluidRow(column(3, downloadButton('download.ltData', 'Download Data'))),
+                        br(),
+                        fluidRow(
+                          tabBox(width = 12,
+                                 tabPanel("Graph",
+                                          fluidRow(column(12,h4(textOutput("ltplot.title")))),
+                                          fluidRow(column(12,plotlyOutput('ltplot'))),
+                                          br(),br(),
+                                          fluidRow(box(width = 6,title = "Graph Options",status = "primary",
+                                                       fluidRow(column(6, uiOutput("ltParam"),
+                                                                       checkboxInput("ltlog", label = "Plot Y-axis on log scale", value= FALSE)),
+                                                                column(6, checkboxInput("plotSymbol", label = "Plot data grade symbol"),
+                                                                       uiOutput("paramSymbol"))),
+                                                       h4("SELECTIZE BOX OR GROUPCHECKBOXES/RADIO BUTTONS TO SELECT WHATS ON GRAPH")
+                                                       #checkboxInput("ltStage", label = "Plot Stage axis", value= TRUE),
+                                                       #checkboxInput("ltDischarge", label = "Plot Discharge axis", value= TRUE))
+                                          ))
+                                          
+                                 ),
+                                 tabPanel("Table",
+                                          fluidRow(column(width=9,DT::dataTableOutput("ltTable")),
+                                                   column(width=3,br(),br(),br(),h4("Symbols"),h5("E = Estimate"),h5("A = Partial Day"),
+                                                          h5("B = Ice conditions"),h5("D = Dry"),h5("R = Revised"))
+                                          )
+                                 )
+                          )
+                        )),
+                      # Historical Annual
+                      conditionalPanel(
+                        condition = "input.histView == 'Annual'",
+                        uiOutput("annualParam"),
+                        fluidRow(column(3, downloadButton('download.annualData', 'Download Data'))),
+                        br(),
+                        fluidRow(
+                          tabBox(width = 12,
+                                 tabPanel("Graph",
+                                          fluidRow(column(12,h4(textOutput("annualPlot.title")))),
+                                          fluidRow(column(12,plotlyOutput('annualPlot'))),
+                                          fluidPage(tags$hr()),
+                                          fluidRow(column(3, uiOutput("annualStat"), 
+                                                          checkboxInput("annuallog", label = "Plot Y-axis on log scale", value= FALSE)),
+                                                   column(4, uiOutput("annualInstantStat"))),
+                                          h5("* Mean values produced only for years of complete data"),
+                                          h4("*** ADD DATA TABLE BELOW OR IN NEW TAB with GRAPH TAB"),
+                                          h4("SELECTIZE BOX OR GROUPCHECKBOXES/RADIO BUTTONS TO SELECT WHATS ON GRAPH")
+                                          
+                                 ),
+                                 tabPanel("Table")
+                          )
+                        )
+                      ),
+                      # Historical Monthly
+                      conditionalPanel(
+                        condition = "input.histView == 'Monthly'",
+                        uiOutput("monthParam"),
+                        fluidRow(column(3, downloadButton('download.monthData', 'Download Data'))),
+                        br(),
+                        fluidRow(
+                          tabBox(width = 12,
+                                 tabPanel("Graph",
+                                          fluidRow(column(12,h4(textOutput("monthPlot.title")))),
+                                          fluidRow(column(12,plotlyOutput('monthPlot'))),
+                                          fluidPage(tags$hr()),
+                                          fluidRow(column(3, checkboxInput("monthlog", label = "Plot Y-axis on log scale", value= FALSE),
+                                                          uiOutput("monthStat"),
+                                                          checkboxInput("monthMaxMin","Fill Maximum-Minimum Range",value=TRUE),
+                                                          checkboxInput("monthNormal","Fill Upper-Lower Quartile range",value=TRUE))),
+                                          h5("* Missing dates ignored"),
+                                          h5("*** ADD TABLE AND YEAR OF MAX VALUE and LIST THE YEARS INCLUDED"),
+                                          h5("*** ADD if statements plot code to specify colours"),
+                                          h4("SELECTIZE BOX OR GROUPCHECKBOXES/RADIO BUTTONS TO SELECT WHATS ON GRAPH"),
+                                          fluidRow(column(6,uiOutput("monthYear")),
+                                                   column(6,uiOutput("monthYearStat")))
+                                 ),
+                                 tabPanel("Table")
+                          )
+                        )
+                      ),
+                      
+                      conditionalPanel(
+                        condition = "input.histView == 'Daily'",
+                        uiOutput("dailyParam"),
+                        fluidRow(column(3, downloadButton('download.dailySummaryData', 'Download Data'))),
+                        br(),
+                        fluidRow(
+                          tabBox(width = 12,
+                                 tabPanel("Graph",
+                                          fluidRow(column(12,h4(textOutput("dailyPlot.title")))),
+                                          fluidRow(column(12,plotlyOutput('dailyPlot'))),
+                                          fluidPage(tags$hr()),
+                                          fluidRow(column(3, checkboxInput("dailylog", label = "Plot Y-axis on log scale", value= FALSE))),
+                                          h4("SELECTIZE BOX OR GROUPCHECKBOXES/RADIO BUTTONS TO SELECT WHATS ON GRAPH"),
+                                          h4("add station number column to all outputted datasets"),
+                                          fluidRow(column(6,uiOutput("dailyYear")))
+                                 )
+                          )))
+             ),
+             tabPanel("Real-time Data",
+                      fluidRow(column(6, textOutput("noRT"))),
+                      fluidRow(column(3, checkboxInput("rtlog", label = "Plot Discharge axis on log scale", value= FALSE)),
+                               column(3, downloadButton('download.rtData', 'Download Data'))),
+                      fluidRow(column(12,h4(textOutput("rtplot.title")))),
+                      fluidRow(column(12,plotlyOutput('rtplot')))),
+             tabPanel("Station Comparison")
+      )
     )
   )
 )
-
 
 ######################################################################################################
 ######################################################################################################
@@ -218,119 +272,229 @@ server <- function(input, output, session) {
     
   })
   
+  
+  ###################################################################################
   ### Historical Data ###
-  ######################
+  ###################################################################################
   
-  # Extract historical data from HYDAT and determine the start and end dates for clipping
+  dailyData <- reactive({
+    check <- STN_DATA_RANGE(HYDAT.path, STATION_NUMBER=input$station) %>% filter(DATA_TYPE=="Q"|DATA_TYPE=="H")
+    
+    if ("Q" %in% check$DATA_TYPE & "H" %in% check$DATA_TYPE) { # both Q and H
+      daily.flow.HYDAT <- DLY_FLOWS(hydat_path = HYDAT.path, STATION_NUMBER=input$station)
+      daily.levels.HYDAT <- DLY_LEVELS(hydat_path = HYDAT.path, STATION_NUMBER=input$station)
+      daily.data <- rbind(daily.flow.HYDAT[,c(2:5)],daily.levels.HYDAT[,c(2:5)])
+    } else if ("Q" %in% check$DATA_TYPE & !("H" %in% check$DATA_TYPE)) { # just Q
+      daily.flow.HYDAT <- DLY_FLOWS(hydat_path = HYDAT.path, STATION_NUMBER=input$station)
+      daily.data <- daily.flow.HYDAT[,c(2:5)]
+    } else if (!("Q" %in% check$DATA_TYPE) & "H" %in% check$DATA_TYPE) { # just H
+      daily.levels.HYDAT <- DLY_LEVELS(hydat_path = HYDAT.path, STATION_NUMBER=input$station)
+      daily.data <- daily.levels.HYDAT[,c(2:5)]
+    }
+    
+    daily.data1 <- as.data.frame(daily.data[0,])
+    for (parameter in unique(daily.data$Parameter)) {
+      daily.data.param <- daily.data %>% filter(Parameter==parameter)
+      min.date <- as.Date((paste((as.numeric(format(min(daily.data.param$Date),'%Y'))),01,01,sep="-")),"%Y-%m-%d")
+      max.date <- as.Date((paste((as.numeric(format(max(daily.data.param$Date),'%Y'))),12,31,sep="-")),"%Y-%m-%d")
+      data.empty <- data.frame(Date=seq(min.date, max.date, by="days"))
+      data.temp <- merge(data.empty,daily.data.param,by="Date",all = TRUE)
+      data.temp$Parameter <- parameter
+      daily.data1 <- as.data.frame(rbind(daily.data1,data.temp))
+    }
+    
+    daily.data <- daily.data1
+  })
+  
   histDates <- reactive({
-    
-    daily.flow.HYDAT <- DLY_FLOWS(hydat_path = HYDAT.path, STATION_NUMBER=input$station)
-    
-    daily.flow.dates <- daily.flow.HYDAT[,c(2,4)] %>% 
-      summarize(minDate=min(Date),
-                maxDate=max(Date))
-    
+    daily.flow.dates <- dailyData() %>% 
+      summarize(minDate=as.numeric(format(min(Date),'%Y')),
+                maxDate=as.numeric(format(max(Date),'%Y')))
   })
   
-  
+
   ### Historical Long-term Data
+  ###################################################################################
   
-  # Get daily data from HYDAT, fill in missing days, and clip to dates
-  histData <- reactive({
-    
-    daily.flow.HYDAT <- DLY_FLOWS(hydat_path = HYDAT.path, STATION_NUMBER=input$station)
-    
-    flow.data <- daily.flow.HYDAT[,c(2:5)]
-    colnames(flow.data) <- c("Date", "Parameter","Discharge","Symbol")
-    
-    min.date <- as.Date((paste((as.numeric(format(min(flow.data$Date),'%Y'))),01,01,sep="-")),"%Y-%m-%d")
-    max.date <- as.Date((paste((as.numeric(format(max(flow.data$Date),'%Y'))),12,31,sep="-")),"%Y-%m-%d")
-    flow.data.empty <- data.frame(Date=seq(min.date, max.date, by="days"))
-    flow.data <- merge(flow.data.empty,flow.data,by="Date",all = TRUE)
-    
-    flow.data= flow.data[flow.data$Date  >=input$date.range[1] & flow.data$Date <= input$date.range[2],]
+  
+  output$histYears <- renderUI({
+    sliderInput("histYears",label="Filter data between the following years:",min=histDates()$minDate,max=histDates()$maxDate,value=c(histDates()$minDate,histDates()$maxDate),sep = "")
+  })
+  output$paramSymbol <- renderUI({
+    selectInput("paramSymbol", label = "Symbol parameter:",choices = as.list(unique(dailyData()$Parameter)))
   })
   
-  # Plot reactive data and render for plotting
-  longtermPlot <- function(){
-    validate(
-      need(histData(),"NOT AVAILABLE")
-    )
-    full.record.plot <- ggplot(data=histData(), aes_string(x=histData()$Date, y=histData()$Discharge))+
-      ggtitle(paste0("DAILY DISCHARGE - ",metaData()[2,2]," (",metaData()[1,2],")"))+
-      theme(plot.title = element_text(hjust = 0.5))+
-      geom_line(colour="dodgerblue4")+
-      {if(input$ltlog)scale_y_log10()}+
-      ylab("Discharge (cms)")+
-      xlab("Date")+
-      theme(axis.title = element_text(size=15),
-            plot.title = element_text(size=15,hjust = 0.5),
-            axis.text = element_text(size=13))
-    
-    print(full.record.plot)
-  }
-  output$ltplot <- renderPlot({
-    longtermPlot()
+  output$ltplot.title <- renderText({
+    paste0("Daily Data - ",metaData()[2,2]," (",metaData()[1,2],")")
   })
   
-  #Download plot/data buttons
+  output$ltParam <- renderUI({
+    selectizeInput("ltParam","Parameters to plot:",choices=as.list(unique(dailyData()$Parameter)),selected=as.list(unique(dailyData()$Parameter)), multiple =TRUE)
+  })
+  
+  ltplot.y <- reactive({
+    if (input$ltlog) {
+      list(title= "Discharge (cms)",
+           type= "log")
+    } else {
+      list(title= "Discharge (cms)")
+    }
+  })
+  
+  output$ltplot <- renderPlotly({
+    plot.data <- dailyData() %>% 
+      mutate(Symbol=replace(Symbol, Symbol=="E", "Estimate"),
+             Symbol=replace(Symbol, Symbol=="A", "Partial Day"),
+             Symbol=replace(Symbol, Symbol=="B", "Ice conditions"),
+             Symbol=replace(Symbol, Symbol=="D", "Dry"),
+             Symbol=replace(Symbol, Symbol=="R", "Revised"))
+    
+    if (length(input$ltParam)==2) {
+      plot <-  plot_ly() %>%
+        add_lines(data=plot.data %>% filter(Parameter=="FLOW"),x= ~Date,y= ~Value, name="Discharge") %>%
+        add_lines(data=plot.data %>% filter(Parameter=="LEVEL"),x= ~Date,y= ~Value, name="Water Level", yaxis = "y2") %>%
+        layout(xaxis=list(title="Date"),
+               yaxis=ltplot.y(),
+               yaxis2 = list(overlaying = "y",side = "right",title = "Water Level (m)"))
+      
+    } else if (length(input$ltParam)==1 & input$ltParam=="FLOW") {
+      plot <- plot_ly() %>%
+        add_lines(data=plot.data %>% filter(Parameter=="FLOW"),x= ~Date,y= ~Value, name="Discharge",text=~Symbol) %>%
+        layout(xaxis=list(title="Date"),
+               yaxis=ltplot.y())
+    } else if (length(input$ltParam)==1 & input$ltParam=="LEVEL") {
+      plot <-plot_ly() %>%
+        add_lines(data=plot.data %>% filter(Parameter=="LEVEL"),x= ~Date,y= ~Value, name="Water Level") %>%
+        layout(xaxis=list(title="Date"),
+               yaxis=list(title = "Water Level (m)"))
+    }
+    
+    if (input$plotSymbol) {
+      plot %>% add_markers(data=plot.data %>% filter(Parameter==input$paramSymbol),x= ~Date,y= 0, color= ~Symbol)
+    } else {
+      plot
+    }
+  })
+  
+  ltTableOutput <- reactive({
+    data <- dailyData() %>% mutate(Value=round(Value,3),
+                                   #data <- daily.data %>% mutate(Value=round(Value,3),
+                                   Year=as.integer(format(Date,'%Y')),
+                                   Month=as.character(format(Date,'%B'))) %>%
+      select(Date,Year,Month,Parameter,Value,Symbol)
+    
+    
+    check <- STN_DATA_RANGE(HYDAT.path, STATION_NUMBER=input$station) %>% filter(DATA_TYPE=="Q"|DATA_TYPE=="H")
+    if ("Q" %in% check$DATA_TYPE & "H" %in% check$DATA_TYPE) { # both Q and H
+      data2 <- data %>% filter(Parameter=="FLOW") %>% mutate("Flow (cms)"=Value,"Flow Symbol"=Symbol)%>% select(-Parameter,-Value,-Symbol)
+      data3 <- data %>% filter(Parameter=="LEVEL") %>% mutate("Water Level (m)"=Value,"Water Level Symbol"=Symbol)%>% select(-Parameter,-Value,-Symbol)
+      data2 <- merge(data2,data3,by=c("Date","Year","Month"),all=TRUE) 
+    } else if ("Q" %in% check$DATA_TYPE & !("H" %in% check$DATA_TYPE)) { # just Q
+      data2 <- data %>% rename("Flow (cms)"=Value,"Flow Symbol"=Symbol) %>% select(-Parameter)
+    } else if (!("Q" %in% check$DATA_TYPE) & "H" %in% check$DATA_TYPE) { # just H
+      data2 <- data %>% rename("Water Level (m)"=Value,"Water Level Symbol"=Symbol) %>% select(-Parameter)
+    }
+    data2
+  })
+
+  output$ltTable <- DT::renderDataTable(
+    ltTableOutput(),
+    rownames=FALSE,
+    filter = 'top',
+    extensions = c("Scroller"),
+    options = list(scrollX = TRUE,
+                   scrollY=600,deferRender = TRUE,scroller = TRUE,
+                   columnDefs = list(list(className = 'dt-center', targets = 0:2)))
+  ) 
+
+  #Download data button
   output$download.ltData <- downloadHandler(
     filename = function() {paste0(metaData()[1,2]," - daily discharge.csv")},
     content = function(file) {
-      write.csv(histData(),file, row.names = FALSE, na="")
+      write.csv(dailyData(),file, row.names = FALSE, na="")
     })
-  output$download.ltPlot <- downloadHandler(
-    filename = function() {paste0(metaData()[1,2]," - daily discharge.png")},
-    content = function(file) {
-      png(file, width = 900, height=500)
-      print(plotInput())
-      dev.off()
-    })    
+  
+  
   
   ### Historical Annual Data
+  ###################################################################################
   
-  # Calculate annual data and render for printing
-  annualData <- function(){
-    daily.data <- histData()
-    daily.data$Year <- as.numeric(format(daily.data$Date,'%Y'))
+  annualData <- reactive({
     
-    annual.data <- daily.data %>% 
-      group_by(Year) %>% 
-      summarize("Missing Days"= sum(is.na(Discharge)),
-                Mean=mean(Discharge),
-                Maximum=max(Discharge),
-                Minimum=min(Discharge),
-                Median=median(Discharge))
-    annual.data
-  }
-  # output$annualTable <- renderTable(annualData(),colnames = TRUE)
+    annual <- ANNUAL_STATISTICS(hydat_path = HYDAT.path, STATION_NUMBER=input$station) %>% 
+      filter(Parameter=="Flow" | Parameter == "Water Level")
+    
+    # Fill in missing years
+    annual.data <- annual[0,]
+    for (param in unique(annual$Parameter)) {
+      annual.param <- annual %>% filter(Parameter==param)
+      all.years <- as.data.frame(rep(seq(from=min(annual.param$Year),to=max(annual.param$Year)),3))
+      colnames(all.years) <- "Year"
+      all.years$Sum_stat <- c(rep("MEAN",max(annual.param$Year)-min(annual.param$Year)+1),
+                              rep("MAX",max(annual.param$Year)-min(annual.param$Year)+1),
+                              rep("MIN",max(annual.param$Year)-min(annual.param$Year)+1))
+      all.years <- merge(annual.param,all.years,by=c("Year","Sum_stat"), all=TRUE)
+      all.years$Parameter <- param
+      all.years$STATION_NUMBER <- input$station
+      all.years$Symbol[is.na(all.years$Symbol)] <- ""
+      annual.data <- rbind(annual.data,all.years)
+    }
+    annual.data <- annual.data %>% 
+      filter(Year >= input$histYears[1] & Year <= input$histYears[2])
+    annual.data 
+  })
   
-  # Plot reactive data and render for plotting
-  annualPlot <- function(){
-    validate(
-      need(annualData(),"NOT AVAILABLE")
-    )
-    annual.plot <- ggplot(data=annualData(), aes_string(x=annualData()$Year))+
-      ggtitle(paste0("ANNUAL FLOWS - ",metaData()[2,2]," (",metaData()[1,2],")"))+
-      theme(plot.title = element_text(hjust = 0.5))+
-      {if("Mean" %in% input$annualChecks) geom_point(aes_string(y=annualData()$Mean),colour="dodgerblue4", size=3)}+
-      {if("Mean" %in% input$annualChecks) geom_line(aes_string(y=annualData()$Mean),colour="dodgerblue4")}+
-      {if("Median" %in% input$annualChecks) geom_point(aes_string(y=annualData()$Median),colour="royalblue", size=3)}+
-      {if("Median" %in% input$annualChecks) geom_line(aes_string(y=annualData()$Median),colour="royalblue")}+
-      {if("Minimum" %in% input$annualChecks) geom_point(aes_string(y=annualData()$Minimum),colour="purple", size=3)}+
-      {if("Minimum" %in% input$annualChecks) geom_line(aes_string(y=annualData()$Minimum),colour="purple")}+
-      {if("Maximum" %in% input$annualChecks) geom_point(aes_string(y=annualData()$Maximum),colour="green", size=3)}+
-      {if("Maximum" %in% input$annualChecks) geom_line(aes_string(y=annualData()$Maximum),colour="green")}+
-      {if(input$annuallog)scale_y_log10()}+
-      ylab("Discharge (cms)")+
-      xlab("Year")+
-      theme(axis.title = element_text(size=15),
-            plot.title = element_text(size=15,hjust = 0.5),
-            axis.text = element_text(size=13))
-    print(annual.plot)
-  }
-  output$annualPlot <- renderPlot({
-    annualPlot()
+  annualInstantData <- reactive({
+    annual.instant <- ANNUAL_INSTANT_PEAKS(hydat_path = HYDAT.path, STATION_NUMBER=input$station)
+    
+    annual.instant <- annual.instant %>% 
+      mutate(Date=as.Date(paste(YEAR,MONTH,DAY,sep="-"),format="%Y-%m-%d"),
+             Time=paste0(HOUR,":",ifelse(nchar(MINUTE)>1,paste(MINUTE),paste0(0,MINUTE))," ",TIME_ZONE),
+             DateTime=paste0("On ",Date," at ",Time))
+    
+  })
+  
+
+  output$annualStat <- renderUI({
+    selectizeInput("annualStat", label = "Annual statistic:",choices = as.list(unique(annualData()[annualData()$Parameter == input$annualParam,]$Sum_stat)),multiple =TRUE,
+                   selected = as.list(unique(annualData()[annualData()$Parameter == input$annualParam,]$Sum_stat)))
+  })
+  output$annualInstantStat <- renderUI({
+    selectizeInput("annualInstantStat", label = "Annual instantaneous extreme:",choices = as.list(unique(annualInstantData()[annualInstantData()$Parameter == input$annualParam,]$PEAK_CODE)),multiple =TRUE)
+  })
+  
+  output$annualParam <- renderUI({
+    selectInput("annualParam", label = "Parameter:",choices = as.list(unique(annualData()$Parameter)))
+  })
+  
+  output$annualPlot.title <- renderText({
+    paste0("Annual ",input$annualParam," Statistics - ",metaData()[2,2]," (",metaData()[1,2],")")
+  })
+  
+  
+  annualPlot.y <- reactive({
+    if (input$annuallog) {
+      list(title=ifelse(input$annualParam== "Flow","Discharge (cms)","Water Level (m)"),
+           type= "log")
+    } else {
+      list(title=ifelse(input$annualParam== "Flow","Discharge (cms)","Water Level (m)"))
+    }
+  })
+  
+  output$annualPlot <- renderPlotly({
+    plot <- plot_ly() %>% 
+      add_trace(data=annualData() %>% filter(Parameter==input$annualParam & Sum_stat %in% input$annualStat),x= ~Year,y= ~Value, color=~Sum_stat,mode = 'lines+markers') %>% 
+      layout(xaxis=list(title="Year"),
+             yaxis=annualPlot.y())
+    
+    if ("MAX" %in% input$annualInstantStat){
+      plot <- plot %>%  add_markers(data=annualInstantData() %>% filter(Parameter==input$annualParam & PEAK_CODE == "MAX"),x= ~YEAR,y= ~Value, name="Instant. Maximum",marker=list(symbol=2,size=8), text=~DateTime)
+    } 
+    if ("MIN" %in% input$annualInstantStat){
+      plot <- plot %>%  add_markers(data=annualInstantData() %>% filter(Parameter==input$annualParam & PEAK_CODE == "MIN"),x= ~YEAR,y= ~Value, name="Instant. Minimum",marker=list(symbol=2,size=8), text=~DateTime)
+    }
+    
+    plot
   })
   
   #Download plot/data buttons
@@ -339,67 +503,121 @@ server <- function(input, output, session) {
     content = function(file) {
       write.csv(annualData(),file, row.names = FALSE, na="")
     })  
-  output$download.annualPlot <- downloadHandler(
-    filename = function() {paste0(metaData()[1,2]," - annual summary.png")},
-    content = function(file) {
-      png(file, width = 900, height=500)
-      print(annualPlot())
-      dev.off()
-    })    
+  
+  
+  
   
   
   ### Historical Monthly Data
+  ###################################################################################
+  
   
   # Calculate annual data and render for printing
-  monthData <- function(){
-    daily.data <- histData()
+  monthData <- reactive({
+    daily.data <- dailyData()
+    
     daily.data$Year <- as.numeric(format(daily.data$Date,'%Y'))
     daily.data$Month <- as.integer(format(daily.data$Date,'%m'))
     
+    # FIlter data for select years
+    daily.data <- daily.data %>% 
+      filter(Year >= input$histYears[1] & Year <= input$histYears[2])
+    
     month.data <- daily.data %>% 
-      group_by(Month) %>% 
-      summarize(Mean=mean(Discharge, na.rm=TRUE),
-                Maximum=max(Discharge, na.rm=TRUE),
-                Minimum=min(Discharge, na.rm=TRUE),
-                Median=median(Discharge, na.rm=TRUE),
-                "Upper Quartile"=quantile(Discharge,.75, na.rm=TRUE),
-                "Lower Quartile"=quantile(Discharge,.25,na.rm=TRUE))
+      group_by(Parameter,Month) %>% 
+      summarize(Mean=mean(Value, na.rm=TRUE),
+                Maximum=max(Value, na.rm=TRUE),
+                Minimum=min(Value, na.rm=TRUE),
+                Median=median(Value, na.rm=TRUE),
+                UpperQuartile=quantile(Value,.75, na.rm=TRUE),
+                LowerQuartile=quantile(Value,.25,na.rm=TRUE)) %>% 
+      gather(Stat,Value,3:8)
     month.data
-  }
-  #output$monthTable <- renderTable(monthData(),colnames = TRUE)
-  
-  # Plot reactive data and render for plotting
-  monthPlot <- function(){
-    validate(
-      need(monthData(),"NOT AVAILABLE")
-    )
-    month.plot <- ggplot(data=monthData(), aes_string(x=monthData()$Month))+
-      ggtitle(paste0("MONTHLY FLOWS - ",metaData()[2,2]," (",metaData()[1,2],")"))+
-      theme(plot.title = element_text(hjust = 0.5))+
-      {if("Mean" %in% input$monthChecks) geom_point(aes_string(y=monthData()$Mean),colour="dodgerblue4", size=3)}+
-      {if("Mean" %in% input$monthChecks) geom_line(aes_string(y=monthData()$Mean),colour="dodgerblue4")}+
-      {if("Median" %in% input$monthChecks) geom_point(aes_string(y=monthData()$Median),colour="royalblue", size=3)}+
-      {if("Median" %in% input$monthChecks) geom_line(aes_string(y=monthData()$Median),colour="royalblue")}+
-      {if("Minimum" %in% input$monthChecks) geom_point(aes_string(y=monthData()$Minimum),colour="purple", size=3)}+
-      {if("Minimum" %in% input$monthChecks) geom_line(aes_string(y=monthData()$Minimum),colour="purple")}+
-      {if("Maximum" %in% input$monthChecks) geom_point(aes_string(y=monthData()$Maximum),colour="green", size=3)}+
-      {if("Maximum" %in% input$monthChecks) geom_line(aes_string(y=monthData()$Maximum),colour="green")}+
-      {if("Upper Quartile" %in% input$monthChecks) geom_point(aes_string(y=monthData()$"Upper Quartile"),colour="red", size=3)}+
-      {if("Upper Quartile" %in% input$monthChecks) geom_line(aes_string(y=monthData()$"Upper Quartile"),colour="red")}+
-      {if("Lower Quartile" %in% input$monthChecks) geom_point(aes_string(y=monthData()$"Lower Quartile"),colour="pink", size=3)}+
-      {if("Lower Quartile" %in% input$monthChecks) geom_line(aes_string(y=monthData()$"Lower Quartile"),colour="pink")}+
-      {if(input$monthlog)scale_y_log10()}+
-      ylab("Discharge (cms)")+
-      xlab("Month")+
-      scale_x_continuous(breaks = c(1:12),labels = c("Jan","Feb","Mar","Apr","May","Jun","July","Aug","Sep","Oct","Nov","Dec"))+
-      theme(axis.title = element_text(size=15),
-            plot.title = element_text(size=15,hjust = 0.5),
-            axis.text = element_text(size=13))
-    print(month.plot)
-  }
-  output$monthPlot <- renderPlot({
-    monthPlot()
   })
+  
+  allmonthData <- reactive({
+    check <- STN_DATA_RANGE(HYDAT.path, STATION_NUMBER=input$station) %>% filter(DATA_TYPE=="Q"|DATA_TYPE=="H")
+    
+    if ("Q" %in% check$DATA_TYPE & "H" %in% check$DATA_TYPE) { # both Q and H
+      monthly.flows.hydat <- MONTHLY_FLOWS(hydat_path = HYDAT.path, STATION_NUMBER=input$station) %>% 
+        mutate(Parameter="FLOW")
+      monthly.levels.hydat <- MONTHLY_LEVELS(hydat_path = HYDAT.path, STATION_NUMBER=input$station) %>% 
+        select(-PRECISION_CODE) %>% mutate(Parameter="LEVEL")
+      monthly.data <- rbind(monthly.flows.hydat,monthly.levels.hydat) %>% 
+        select(Parameter,YEAR,MONTH,Sum_stat,Value,Date_occurred)
+    } else if ("Q" %in% check$DATA_TYPE & !("H" %in% check$DATA_TYPE)) { # just Q
+      monthly.flows.hydat <- MONTHLY_FLOWS(hydat_path = HYDAT.path, STATION_NUMBER=input$station) %>% 
+        mutate(Parameter="FLOW")
+      monthly.data <- monthly.flows.hydat %>% 
+        select(Parameter,YEAR,MONTH,Sum_stat,Value,Date_occurred)
+    } else if (!("Q" %in% check$DATA_TYPE) & "H" %in% check$DATA_TYPE) { # just H
+      monthly.levels.hydat <- MONTHLY_LEVELS(hydat_path = HYDAT.path, STATION_NUMBER=input$station) %>% 
+        select(-PRECISION_CODE) %>% mutate(Parameter="LEVEL")
+      monthly.data <- monthly.levels.hydat %>% 
+        select(Parameter,YEAR,MONTH,Sum_stat,Value,Date_occurred)
+    }
+    
+    monthly.data <- as.data.frame(monthly.data) %>% 
+      mutate(YEAR = as.factor(YEAR))
+    monthly.data
+  })
+  
+  
+  output$monthParam <- renderUI({
+    selectInput("monthParam", label = "Parameter:",choices = as.list(unique(monthData()$Parameter)))
+  })
+  
+  output$monthYear <- renderUI({
+    selectizeInput("monthYear", label = "Add year(s) to graph:",choices = as.list(unique(allmonthData()[allmonthData()$Parameter == input$monthParam,]$YEAR)),multiple =TRUE)
+  })
+  
+  output$monthYearStat <- renderUI({
+    selectizeInput("monthYearStat", label = "Select monthly statistic(s) to graph:",choices = as.list(unique(allmonthData()[allmonthData()$Parameter == input$monthParam,]$Sum_stat)),multiple =TRUE)
+  })
+  
+  output$monthStat <- renderUI({
+    selectizeInput("monthStat", label = "Select monthly statistic(s) to graph:",choices = as.list(unique(monthData()[monthData()$Parameter == input$monthParam,]$Stat)),multiple =TRUE,
+                   selected = c("Mean","Median"))
+  })
+  
+  output$monthPlot.title <- renderText({
+    paste0("Monthly ",ifelse(input$monthParam=="FLOW",paste("Flow"),paste("Water Level"))," Statistics - ",metaData()[2,2]," (",metaData()[1,2],")")
+  })
+  
+  monthlyPlot.y <- reactive({
+    if (input$monthlog) {
+      list(title=ifelse(input$monthParam== "FLOW","Discharge (cms)","Water Level (m)"),
+           type= "log")
+    } else {
+      list(title=ifelse(input$monthParam== "FLOW","Discharge (cms)","Water Level (m)"))
+    }
+  })
+  
+  output$monthPlot <- renderPlotly({
+    
+    plot <- plot_ly() %>% 
+      layout(xaxis=list(title="Month",tickvals = seq(1:12),ticktext = c("Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Noc","Dec")),
+             yaxis=monthlyPlot.y())
+    
+    # Add ribbons if checked
+    if (input$monthMaxMin){
+      plot <- plot %>%  add_ribbons(data=monthData() %>% spread(Stat,Value) %>% filter(Parameter==input$monthParam),x= ~Month,ymin= ~Minimum, ymax= ~Maximum,name="Max-Min Range",color=I("lightblue2"))
+    }
+    if (input$monthNormal){
+      plot <- plot %>%  add_ribbons(data=monthData() %>% spread(Stat,Value) %>% filter(Parameter==input$monthParam),x= ~Month,ymin= ~LowerQuartile, ymax= ~UpperQuartile,name="Upper-Lower Quartile Range",color=I("lightblue4"))
+    }
+    
+    # Add monthly summary statistics
+    plot <- plot %>% add_trace(data=monthData() %>% filter(Parameter==input$monthParam & Stat %in% input$monthStat),x= ~Month,y= ~Value, color= ~Stat,mode = 'lines+markers')
+    
+    # Add data from specific years and specific stats    
+    plot <- plot %>% add_trace(data=allmonthData() %>% filter(Parameter==input$monthParam & Sum_stat %in% input$monthYearStat & YEAR %in% input$monthYear),x= ~MONTH,y= ~Value, color=~paste0(YEAR," ",Sum_stat),mode = 'lines+markers')#name= ~paste0(input$monthYearStat),
+    
+    plot
+    
+  })
+  
+
   
   #Download plot/data buttons
   output$download.monthData <- downloadHandler(
@@ -407,22 +625,129 @@ server <- function(input, output, session) {
     content = function(file) {
       write.csv(monthData(),file, row.names = FALSE, na="")
     })  
-  output$download.monthPlot <- downloadHandler(
-    filename = function() {paste0(metaData()[1,2]," - monthly summary.png")},
-    content = function(file) {
-      png(file, width = 900, height=500)
-      print(monthPlot())
-      dev.off()
-    })    
   
+  
+  
+  ### Historical Daily Data
+  ###################################################################################
+  
+  # Calculate annual data and render for printing
+  dailySummaryData <- reactive({
+    daily.data <- dailyData()
+    daily.data$Year <- as.numeric(format(daily.data$Date,'%Y'))
+    daily.data$Day <- as.integer(format(daily.data$Date,'%j'))
+    
+    # FIlter data for select years
+    daily.data <- daily.data %>% 
+      filter(Year >= input$histYears[1] & Year <= input$histYears[2])
+    
+    dailysummary <- daily.data %>% 
+      group_by(Parameter,Day) %>% 
+      filter(Day<366) %>% 
+      summarize(Mean=mean(Value, na.rm=TRUE),
+                Maximum=max(Value, na.rm=TRUE),
+                Minimum=min(Value, na.rm=TRUE),
+                Median=median(Value, na.rm=TRUE),
+                UpperQuartile=quantile(Value,.75, na.rm=TRUE),
+                LowerQuartile=quantile(Value,.25,na.rm=TRUE)) %>% 
+      mutate(Day=as.Date(Day,origin = "1899-12-31"))
+    
+    
+    dailysummary
+  })
+  
+  daily.yearslist <- reactive({
+   data <- dailyData() %>% mutate(Year=as.factor(format(Date,'%Y'))) %>% 
+        group_by(Parameter,Year) %>% summarise(n=sum(is.na(Value))) %>% 
+        filter(n<365)
+  }) 
+  
+  output$dailyYear <- renderUI({
+    selectizeInput("dailyYear", label = "Year:",choices = as.list(unique(daily.yearslist()[daily.yearslist()$Parameter == input$dailyParam,]$Year)),multiple =TRUE)
+  })
+  
+  dailyYears <- reactive({
+    daily.data <- dailyData()
+    daily.data$Year <- as.factor(format(daily.data$Date,'%Y'))
+    daily.data$Day <- as.integer(format(daily.data$Date,'%j'))
+    
+    daily.Year <- daily.data %>% 
+      filter(Year %in% input$dailyYear & Day<366) %>% 
+      mutate(Day=as.Date(Day,origin = "1899-12-31"))
+    daily.Year
+  })
+  
+  
+  output$dailyParam <- renderUI({
+    selectInput("dailyParam", label = "Parameter:",choices = as.list(unique(dailySummaryData()$Parameter)))
+  })
+  
+  
+  
+  output$dailyPlot.title <- renderText({
+    paste0("Daily ",ifelse(input$dailyParam=="FLOW",paste("Flow"),paste("Water Level"))," Statistics - ",metaData()[2,2]," (",metaData()[1,2],")")
+  })
+  
+  dailyPlot.y <- reactive({
+    if (input$dailylog) {
+      list(title=ifelse(input$dailyParam== "FLOW","Discharge (cms)","Water Level (m)"),
+           type= "log")
+    } else {
+      list(title=ifelse(input$dailyParam== "FLOW","Discharge (cms)","Water Level (m)"))
+    }
+  })
+  
+  output$dailyPlot <- renderPlotly({
+    
+    plot <- plot_ly() %>% 
+      add_ribbons(data=dailySummaryData() %>% filter(Parameter==input$dailyParam),x= ~Day,ymin= ~Minimum, ymax= ~Maximum,name="Max-Min Range") %>% 
+      add_ribbons(data=dailySummaryData() %>% filter(Parameter==input$dailyParam),x= ~Day,ymin= ~LowerQuartile, ymax= ~UpperQuartile,name="25-27th Percentile Range") %>% 
+      # add_lines(data=dailySummaryData() %>% filter(Parameter==input$dailyParam),x= ~Day,y= ~Maximum, name="Maximum") %>% 
+      #add_lines(data=dailySummaryData() %>% filter(Parameter==input$dailyParam),x= ~Day,y= ~UpperQuartile, name="Upper Quartile") %>% 
+      add_lines(data=dailySummaryData() %>% filter(Parameter==input$dailyParam),x= ~Day,y= ~Mean, name="Mean") %>% 
+      add_lines(data=dailySummaryData() %>% filter(Parameter==input$dailyParam),x= ~Day,y= ~Median, name="Median") %>% 
+      #add_lines(data=dailySummaryData() %>% filter(Parameter==input$dailyParam),x= ~Day,y= ~LowerQuartile, name="Lower Quartile") %>% 
+      #add_lines(data=dailySummaryData() %>% filter(Parameter==input$dailyParam),x= ~Day,y= ~Minimum, name="Minimum") %>% 
+      layout(xaxis=list(title="Day of Year",tickformat= "%b-%d"),
+             yaxis=dailyPlot.y())
+    
+    if(length(input$dailyYear)>0) {
+      plot %>% add_lines(data=dailyYears() %>% filter(Parameter==input$dailyParam),x= ~Day,y= ~Value, color=~Year)
+    } else {
+      plot
+    }
+    
+  })
+  
+  
+  #Download plot/data buttons
+  output$download.dailySummaryData <- downloadHandler(
+    filename = function() {paste0(metaData()[1,2]," - daily summary.csv")},
+    content = function(file) {
+      write.csv(dailySummaryData(),file, row.names = FALSE, na="")
+    })  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  ###################################################################################
   ### Real-Time Data ###
-  ######################
+  ###################################################################################
+  
   
   # Extract historical data from HYDAT and determine the start and end dates for clipping
   realtimeDates <- reactive({
     
     realtime.HYDAT <- download_realtime_dd(STATION_NUMBER = input$station)
-
+    
     real.timeDates <- as.data.frame(realtime.HYDAT[,3])
     colnames(real.timeDates) <- "DateTime"
     real.timeDates$Date <- as.Date(real.timeDates$DateTime,"%Y-%m-%d")
@@ -434,40 +759,48 @@ server <- function(input, output, session) {
   
   # Extract real-time data from webslink and clip to dates
   realtimeData <- reactive({ 
-    
     realtime.HYDAT <- download_realtime_dd(STATION_NUMBER = input$station)
-    
     real.time <- realtime.HYDAT[,c(3:5)] %>% spread(Parameter,Value)
-    colnames(real.time) <- c("DateTime","Discharge","Water Level")
+    colnames(real.time) <- c("DateTime","Discharge","Stage")
     real.time$Date <- as.Date(real.time$DateTime,"%Y-%m-%d")
     real.time <- as.data.frame(real.time[,c(4,1:3)])
-    
-    real.time= real.time[real.time$Date  >=input$date.rangeRT[1] & real.time$Date <= input$date.rangeRT[2],]
     real.time
   })
   
-  # Create ggplot function
-  realtimePlot <- function(){
-    real.time.plot <- ggplot(data=realtimeData(), aes_string(x="DateTime"))+
-      #geom_line(aes(y=WL),colour="red")+
-      geom_line(aes(y=Discharge),colour="dodgerblue4")+
-      ggtitle(paste0("REAL-TIME DISCHARGE - ",metaData()[2,2]))+
-      theme(plot.title = element_text(hjust = 0.5))+
-      {if(input$logRT)scale_y_log10()}+
-      ylab("Instantaneous Discharge (cms)")+
-      xlab("Date")+
-      theme(axis.title = element_text(size=15),
-            plot.title = element_text(size=15,hjust = 0.5),
-            axis.text = element_text(size=13))
-    #scale_y_continuous(sec.axis = sec_axis(~.*5, name = "Relative humidity [%]"))
-    
-    real.time.plot
-  }
+  
+  
+  rtplot.y <- reactive({
+    if (input$rtlog) {
+      list(
+        title= "Discharge (cms)",
+        type= "log"
+      )
+    } else {
+      list(
+        title= "Discharge (cms)"
+      )
+    }
+  })
+  
+  
+  output$rtplot.title <- renderText({
+    paste0("Real-time Data - ",metaData()[2,2]," (",metaData()[1,2],")")
+  })
+  
+  
+  output$rtplot <- renderPlotly({
+    plot_ly() %>% 
+      add_lines(data=realtimeData(),x= ~DateTime,y= ~Discharge, name="Discharge") %>% 
+      add_lines(data=realtimeData(),x= ~DateTime,y= ~Stage, name="Stage", yaxis = "y2") %>% 
+      layout(xaxis=list(title="Date"),
+             yaxis=rtplot.y(),
+             yaxis2 = list(overlaying = "y",side = "right",title = "Water Level (m)"))
+  })
   
   # Render ggplot for output (if not real time, dont plot)
-  output$rtplot <- renderPlot({
-    if(metaData()[9,2]=="Yes") realtimePlot()
-  })
+  #output$rtplot <- renderPlot({
+  #  if(metaData()[9,2]=="Yes") realtimePlot()
+  #})
   
   ### Leaflet map ###
   ###################
@@ -514,24 +847,9 @@ server <- function(input, output, session) {
       write.csv(realtimeData(),file, row.names = FALSE, na="")
     })  
   
-  # Structure to download real-time plot, only works if opened in browser
-  output$download.rtPlot <- downloadHandler(
-    filename = function() {paste0(metaData()[1,2]," - real-time discharge.png")},
-    content = function(file) {
-      png(file, width = 900, height=500)
-      print(realtimePlot())
-      dev.off()
-    })    
   
-  # Structure to set historical dates input to match start and ends of data
-  output$dateRange <- renderUI({
-    dateRangeInput("date.range","Select start and end dates to plot:",format = "yyyy-mm-dd",startview = "month",start = histDates()$minDate, end = histDates()$maxDate)
-  })
   
-  # Structure to set real-time dates input to match start and ends of data (remove if no real-time data)
-  output$dateRangeRT <- renderUI({
-    {if(metaData()[9,2]=="Yes") dateRangeInput("date.rangeRT","Select start and end dates to plot:",format = "yyyy-mm-dd",startview = "month",start = realtimeDates()$minDate, end = realtimeDates()$maxDate)}
-  })
+  
   
   # Place text in real-time sidepanel section if no real-time data
   output$noRT <- renderText({
@@ -549,7 +867,18 @@ server <- function(input, output, session) {
              "Regulation"=REGULATED)
   }) 
   
-  output$allstationsTable <- DT::renderDataTable(allstationsTable(), rownames=FALSE,selection=list(mode="single"),filter = 'top') 
+  output$allstationsTable <- DT::renderDataTable(
+    allstationsTable(), 
+    rownames=FALSE,
+    selection=list(mode="single"),
+    filter = 'top',
+    extensions = c("Scroller","ColReorder","Buttons"),
+    options = list(scrollX = TRUE,
+                   scrollY=450,deferRender = TRUE,scroller = TRUE,
+                   dom = 'Bfrtip', 
+                   colReorder = TRUE,
+                   buttons= list(list(extend='colvis',columns=c(1:10))))
+  ) 
   
   ########### download table of stations
   downloadStationsList <- reactive({
