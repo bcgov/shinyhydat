@@ -44,14 +44,17 @@ ui <- dashboardPage(
   dashboardSidebar(
     fluidPage(
       br(),
+      h5("Select or type your hydrometric station number then click the 'Select' button to choose."),
       uiOutput("stnSelect"),
+      actionButton("selectStation","Select"),
       hr(),
       h5("About:"),
       h5("This app extracts hydrometric discharge and water level data from the HYDAT database and displays station metadata, historical data, and real-time data, if available. A locally saved SQLite HYDAT database file is required."),
       br(),
       h4("HYDAT versions:"),
       textOutput("localHYDAT"),
-      textOutput("onlineHYDAT")#,
+      textOutput("onlineHYDAT"),br(),br(),
+      textOutput("test")#,
       #actionButton("downloadHYDAT","Download HYDAT")  #NEED TO MOVE QUESTION FROM CONSOLE TO WINDOW
     )
     
@@ -74,18 +77,23 @@ ui <- dashboardPage(
              ),
              tabPanel("Stations Map",
                       br(),
-                      fluidPage(column(width=8,box(width=12,background="light-blue",
-                                                   tags$style(type = "text/css", "#map {height: calc(100vh - 170px) !important;}"),
-                                                   leafletOutput("map"))),
-                                column(width=4,
-                                       box(width=12,title="Station Information",status = "primary",solidHeader = TRUE,
-                                           tableOutput("metaTable"))))
+                      fluidPage(column(width=8,tags$style(type = "text/css", "#map {height: calc(100vh - 170px) !important;}"),
+                                       leafletOutput("map")),
+                                column(width=4,box(width=12,status = "primary",
+                                                   h5("Map Settings"),
+                                                   selectizeInput("mapProvince","Province:",choices=c("AB","BC","SK","MB","ON","QC","NB","NS","PE","NL","YT","NT","NU"),selected="BC",multiple=TRUE),
+                                                   selectizeInput("mapStatus","Status:",choices=c("Active","Discontinued"),selected=c("Active","Discontinued"),multiple=TRUE),
+                                                   selectizeInput("mapReg","Regulation:",choices=c("Natural","Regulated"),selected=c("Natural","Regulated"),multiple=TRUE),
+                                                   selectizeInput("mapRT","Real-time:",choices=c("Yes","No"),selected=c("Yes","No"),multiple=TRUE),
+                                                   uiOutput("mapDA")
+                                )))
              ),
              tabPanel("Station Info",
                       br(),
-                      h4("Station Information"),
-                      fluidRow(column(width = 5),#tableOutput("metaTable")),
-                               column(width = 7,box(width=12,background="light-blue",
+                      fluidRow(column(width = 6,
+                                      box(width=12,title="Station Information",status = "primary",solidHeader = TRUE,
+                                          tableOutput("metaTable"))),#tableOutput("metaTable")),
+                               column(width = 6,box(width=12,background="light-blue",
                                                     leafletOutput("stnmap")
                                )))),
              tabPanel("Historical Data",
@@ -104,10 +112,12 @@ ui <- dashboardPage(
                                           fluidRow(column(12,plotlyOutput('ltplot'))),
                                           br(),br(),
                                           fluidRow(box(width = 6,title = "Graph Options",status = "primary",
-                                                       fluidRow(column(5, uiOutput("ltParam"),
+                                                       fluidRow(column(5,hr(),
+                                                                       uiOutput("ltParam"),
                                                                        checkboxInput("ltlog", label = "Log scale on 'Discharge' axis", value= FALSE)),
                                                                 column(2),
-                                                                column(5, uiOutput("paramSymbol")))
+                                                                column(5,hr(),
+                                                                       uiOutput("paramSymbol")))
                                           ))
                                           
                                  ),
@@ -132,11 +142,12 @@ ui <- dashboardPage(
                                           h5("* Mean values produced only for years of complete data"),
                                           br(),br(),
                                           fluidRow(box(width = 6,title = "Graph Options",status = "primary",
-                                                       fluidRow(column(5,
+                                                       fluidRow(column(5,hr(),
                                                                        uiOutput("annualParam"), 
                                                                        checkboxInput("annuallog", label = "Log scale on primary Y-axis", value= FALSE)),
                                                                 column(2),
-                                                                column(5,uiOutput("annualStat"),
+                                                                column(5,hr(),
+                                                                       uiOutput("annualStat"),
                                                                        uiOutput("annualInstantStat")))
                                           ))
                                  ),
@@ -157,16 +168,18 @@ ui <- dashboardPage(
                                           h5("* Missing dates ignored"),
                                           br(),br(),
                                           fluidRow(box(width = 9,title = "Graph Options",status = "primary",
-                                                       fluidRow(column(3,uiOutput("monthParam"),
+                                                       fluidRow(column(3,hr(),
+                                                                       uiOutput("monthParam"),
                                                                        checkboxInput("monthlog", label = "Log scale on primary Y-axis", value= FALSE)),
                                                                 column(1),
-                                                                column(4,
+                                                                column(4,hr(),
                                                                        uiOutput("monthStat"),
                                                                        checkboxInput("monthMaxMin","Display Maximum-Minimum range",value=TRUE),
                                                                        checkboxInput("month90","Display 5-95 percentile range",value=TRUE),
                                                                        checkboxInput("month50","Display 25-75 percentile range",value=TRUE)),
                                                                 column(1),
-                                                                column(3,uiOutput("monthYear"),
+                                                                column(3,hr(),
+                                                                       uiOutput("monthYear"),
                                                                        uiOutput("monthYearStat")))))
                                  ),
                                  tabPanel("Table",
@@ -188,23 +201,25 @@ ui <- dashboardPage(
                                           fluidRow(column(12,plotlyOutput('dailyPlot'))),
                                           br(),br(),
                                           fluidRow(box(width = 9,title = "Graph Options",status = "primary",
-                                                       fluidRow(column(3,uiOutput("dailyParam"),
+                                                       fluidRow(column(3,hr(),
+                                                                       uiOutput("dailyParam"),
                                                                        checkboxInput("dailylog", label = "Log scale on primary Y-axis", value= FALSE)),
                                                                 column(1),
-                                                                column(4,
+                                                                column(4,hr(),
                                                                        uiOutput("dailyStat"),
                                                                        checkboxInput("dailyMaxMin","Display Maximum-Minimum range",value=TRUE),
                                                                        checkboxInput("daily90","Display 5-95 percentile range",value=TRUE),
                                                                        checkboxInput("daily50","Display 25-75 percentile range",value=TRUE)),
                                                                 column(1),
-                                                                column(3,uiOutput("dailyYear")))
+                                                                column(3,hr()
+                                                                       ,uiOutput("dailyYear")))
                                           ))
                                  ),
                                  tabPanel("Table",
                                           h4("SELECTIZE BOX OR GROUPCHECKBOXES/RADIO BUTTONS TO SELECT WHATS ON GRAPH"),
                                           h4("add station number column to all outputted datasets")
                                  )
-                                          
+                                 
                           )))
              ),
              tabPanel("Real-time Data",
@@ -218,7 +233,8 @@ ui <- dashboardPage(
                         fluidRow(column(12,plotlyOutput('rtplot'))),
                         br(),br(),
                         fluidRow(box(width =4,title = "Graph Options",status = "primary",
-                                     fluidRow(column(12,uiOutput("rtParam"),
+                                     fluidRow(column(12,hr(),
+                                                     uiOutput("rtParam"),
                                                      checkboxInput("rtlog", label = "Log scale on 'Discharge' axis", value= FALSE))))))),
              tabPanel("Station Comparison")
       )
@@ -253,10 +269,34 @@ server <- function(input, output, session) {
   
   ### Select station ###
   ######################
+  
+  
+  values <- reactiveValues()
+  values$Station <- as.data.frame(stations)[1,1]
+  
+  output$test <- renderText({values$Station})
+  
   output$stnSelect <- renderUI({
-    selectizeInput("station", label = "Select or type your hydrometric station ID number:",choices = stations.list,options = list(placeholder ="type station ID number",maxOptions = 2420 ), selected=allstationsTable()[input$allstationsTable_rows_selected,1])
+    selectizeInput("station", label = "Station Number:",choices = stations.list,options = list(placeholder ="type station ID number",maxOptions = 2420 ), selected=values$Station)
   })
   
+  observeEvent(input$allstationsTable_rows_selected, {
+    isolate(
+      values$Station <- as.data.frame(allstationsTable())[input$allstationsTable_rows_selected,1]
+    )
+  })
+  
+  # Select by clicking on map
+  observeEvent(input$map_marker_click, { # update the location selectInput on map clicks
+    isolate(values$Station <- input$map_marker_click$id)
+    updateSelectizeInput(session, "station", selected=input$map_marker_click$id)
+    proxy %>% DT::selectRows(which(stations.list == values$Station))
+  })
+  
+  # Select by dropdown in sidebar
+  observeEvent(input$selectStation, {
+    isolate(values$Station <- input$station)
+  })
   
   ### MetaData ###
   ################
@@ -264,7 +304,7 @@ server <- function(input, output, session) {
   # Extract station metadata from HYDAT
   metaData <- reactive({
     
-    stn.meta.HYDAT <- stations %>% filter(STATION_NUMBER==input$station)#input$station)
+    stn.meta.HYDAT <- stations %>% filter(STATION_NUMBER==values$Station)#values$Station)
     
     stn.info <- stn.meta.HYDAT %>% 
       mutate("Historical Data Link"=paste0("https://wateroffice.ec.gc.ca/report/historical_e.html?stn=",STATION_NUMBER),
@@ -288,7 +328,7 @@ server <- function(input, output, session) {
   output$stnmap <- renderLeaflet({
     leaflet(stations) %>% addTiles() %>%
       setView(lng = as.numeric(metaData()[6,2]), lat = as.numeric(metaData()[5,2]), zoom = 9) %>% # set centre and extent of map
-      addCircleMarkers(data = filter(stations, STATION_NUMBER %in% input$station), ~LONGITUDE, ~LATITUDE, color = "red", radius = 6) %>%
+      addCircleMarkers(data = filter(stations, STATION_NUMBER %in% values$Station), ~LONGITUDE, ~LATITUDE, color = "red", radius = 6) %>%
       addCircles(lng = ~LONGITUDE, lat = ~LATITUDE, weight = 1,
                  radius = 1, label = ~STATION_NAME, 
                  popup = ~paste(STATION_NAME, "<br>",
@@ -304,7 +344,7 @@ server <- function(input, output, session) {
   ###################################################################################
   
   dailyData <- reactive({
-    check <- STN_DATA_RANGE( STATION_NUMBER=input$station) %>% filter(DATA_TYPE=="Q"|DATA_TYPE=="H")
+    check <- STN_DATA_RANGE(STATION_NUMBER=input$station) %>% filter(DATA_TYPE=="Q"|DATA_TYPE=="H")
     
     if ("Q" %in% check$DATA_TYPE & "H" %in% check$DATA_TYPE) { # both Q and H
       daily.flow.HYDAT <- DLY_FLOWS(STATION_NUMBER=input$station)
@@ -460,7 +500,7 @@ server <- function(input, output, session) {
                               rep("MIN",max(annual.param$Year)-min(annual.param$Year)+1))
       all.years <- merge(annual.param,all.years,by=c("Year","Sum_stat"), all=TRUE)
       all.years$Parameter <- param
-      all.years$STATION_NUMBER <- input$station
+      all.years$STATION_NUMBER <- values$Station
       all.years$Symbol[is.na(all.years$Symbol)] <- ""
       annual.data <- rbind(annual.data,all.years)
     }
@@ -510,7 +550,7 @@ server <- function(input, output, session) {
   output$annualPlot <- renderPlotly({
     
     plot.data <- annualData() %>% filter(Parameter==input$annualParam)
-      
+    
     plot <- plot_ly() %>% 
       layout(xaxis=list(title="Year"),
              yaxis=annualPlot.y(),
@@ -611,7 +651,7 @@ server <- function(input, output, session) {
   monthlyStatsList <- reactive({
     c("Mean"="Mean","Maximum"="Maximum","Minimum"="Minimum","Median"="Median","75th Percentile"="Percentile75","25th Percentile"="Percentile25", "95th Percentile"="Percentile95", "5th Percentile"="Percentile5")
   })
-
+  
   output$monthStat <- renderUI({
     selectizeInput("monthStat", label = "Select monthly statistic(s):",choices = monthlyStatsList(),multiple =TRUE,selected = c("Mean","Median"))
   })
@@ -635,27 +675,27 @@ server <- function(input, output, session) {
              showlegend = TRUE)
     
     # Add ribbons if checked
-    if (input$monthMaxMin){plot <- plot %>%  add_ribbons(data=plot.data,x= ~Month,ymin= ~Minimum, ymax= ~Maximum,name="Max-Min Range",color=I("lightblue2"))}
-    if (input$month90){plot <- plot %>%  add_ribbons(data=plot.data,x= ~Month,ymin= ~Percentile5, ymax= ~Percentile95,name="90% of Flows",color=I("lightblue4"))}
-    if (input$month50){plot <- plot %>%  add_ribbons(data=plot.data,x= ~Month,ymin= ~Percentile25, ymax= ~Percentile75,name="50% of Flows",color=I("lightblue4"))}
+    if (input$monthMaxMin){plot <- plot %>%  add_ribbons(data=plot.data,x= ~Month,ymin= ~Minimum, ymax= ~Maximum,name="Max-Min Range",fillcolor="rgba(224,255,255,.7)",line=list(color='rgba(7, 164, 181, 0.05)'))}
+    if (input$month90){plot <- plot %>%  add_ribbons(data=plot.data,x= ~Month,ymin= ~Percentile5, ymax= ~Percentile95,name="90% of Flows",fillcolor="rgba(201,229,229,.7)",line=list(color='rgba(7, 164, 181, 0.05)'))}
+    if (input$month50){plot <- plot %>%  add_ribbons(data=plot.data,x= ~Month,ymin= ~Percentile25, ymax= ~Percentile75,name="50% of Flows",fillcolor="rgba(179,204,204,.7)",line=list(color='rgba(7, 164, 181, 0.05)'))}
     # Add lines if selected
-    if ("Maximum" %in% input$monthStat){plot <- plot %>%  add_trace(data=plot.data,x= ~Month,y=~Maximum,name="Maximum",color=I("red"),mode = 'lines+markers')}
-    if ("Percentile95" %in% input$monthStat){plot <- plot %>%  add_trace(data=plot.data,x= ~Month,y=~Percentile95,name="95th Percentile",color=I("yellow"),mode = 'lines+markers')}
-    if ("Percentile75" %in% input$monthStat){plot <- plot %>%  add_trace(data=plot.data,x= ~Month,y=~Percentile75,name="75th Percentile",color=I("orange"),mode = 'lines+markers')}
+    if ("Maximum" %in% input$monthStat){plot <- plot %>%  add_trace(data=plot.data,x= ~Month,y=~Maximum,name="Maximum",color=I("lightblue2"),mode = 'lines+markers',line=list(dash = 'dot'))}
+    if ("Percentile95" %in% input$monthStat){plot <- plot %>%  add_trace(data=plot.data,x= ~Month,y=~Percentile95,name="95th Percentile",color=I("lightblue3"),mode = 'lines+markers',line=list(dash = 'dot'))}
+    if ("Percentile75" %in% input$monthStat){plot <- plot %>%  add_trace(data=plot.data,x= ~Month,y=~Percentile75,name="75th Percentile",color=I("lightblue4"),mode = 'lines+markers',line=list(dash = 'dot'))}
     if ("Mean" %in% input$monthStat){plot <- plot %>%  add_trace(data=plot.data,x= ~Month,y=~Mean,name="Mean",color=I("green"),mode = 'lines+markers')}
     if ("Median" %in% input$monthStat){plot <- plot %>%  add_trace(data=plot.data,x= ~Month,y=~Median,name="Median",color=I("blue"),mode = 'lines+markers')}
-    if ("Percentile25" %in% input$monthStat){plot <- plot %>%  add_trace(data=plot.data,x= ~Month,y=~Percentile25,name="25th Percentile",color=I("brown"),mode = 'lines+markers')}
-    if ("Percentile5" %in% input$monthStat){plot <- plot %>%  add_trace(data=plot.data,x= ~Month,y=~Percentile5,name="5th Percentile",color=I("black"),mode = 'lines+markers')}
-    if ("Minimum" %in% input$monthStat){plot <- plot %>%  add_trace(data=plot.data,x= ~Month,y=~Minimum,name="Minimum",color=I("purple"),mode = 'lines+markers')}
-
+    if ("Percentile25" %in% input$monthStat){plot <- plot %>%  add_trace(data=plot.data,x= ~Month,y=~Percentile25,name="25th Percentile",color=I("brown"),mode = 'lines+markers',line=list(dash = 'dot'))}
+    if ("Percentile5" %in% input$monthStat){plot <- plot %>%  add_trace(data=plot.data,x= ~Month,y=~Percentile5,name="5th Percentile",color=I("black"),mode = 'lines+markers',line=list(dash = 'dot'))}
+    if ("Minimum" %in% input$monthStat){plot <- plot %>%  add_trace(data=plot.data,x= ~Month,y=~Minimum,name="Minimum",color=I("purple"),mode = 'lines+markers',line=list(dash = 'dot'))}
+    
     
     # Add data from specific years and specific stats    
     plot <- plot %>% add_trace(data=allmonthData() %>% filter(Parameter==input$monthParam & Sum_stat %in% input$monthYearStat & YEAR %in% input$monthYear),x= ~MONTH,y= ~Value, color=~paste0(YEAR," ",Sum_stat),mode = 'lines+markers')#name= ~paste0(input$monthYearStat),
     
     plot
     
-
-
+    
+    
     
   })
   
@@ -799,7 +839,7 @@ server <- function(input, output, session) {
   ###################################################################################
   
   output$rtExists <- reactive({
-    if(is.null(realtime.HYDAT <- download_realtime_dd(STATION_NUMBER = input$station))){
+    if(is.null(realtime.HYDAT <- download_realtime_dd(STATION_NUMBER = values$Station))){
       exist <- "No"
     } else {
       exist <- "Yes"
@@ -812,7 +852,7 @@ server <- function(input, output, session) {
     
     if(metaData()[9,2]=="No") {
       paste("*** No real-time data available for this station.")
-    } else if(metaData()[9,2]=="Yes" & is.null(realtime.HYDAT <- download_realtime_dd(STATION_NUMBER = input$station))) {
+    } else if(metaData()[9,2]=="Yes" & is.null(realtime.HYDAT <- download_realtime_dd(STATION_NUMBER = values$Station))) {
       paste("*** No real-time data available at this time.")
     }
     
@@ -821,7 +861,7 @@ server <- function(input, output, session) {
   
   # Extract real-time data from webslink and clip to dates
   realtimeData <- reactive({ 
-    realtime.HYDAT <- download_realtime_dd(STATION_NUMBER = input$station)#input$station
+    realtime.HYDAT <- download_realtime_dd(STATION_NUMBER = values$Station)#values$Station
     
     # Remove FLOW OR LEVEL if there either are all NA
     realtime.FLOW <- realtime.HYDAT %>% filter(Parameter=="FLOW")
@@ -914,14 +954,11 @@ server <- function(input, output, session) {
   observe({
     leafletProxy("map") %>%
       removeMarker(layerId="selected") %>%
-      addCircleMarkers(layerId="selected",data = filter(stations, STATION_NUMBER %in% input$station), ~LONGITUDE, ~LATITUDE, color = "green", radius = 6)
+      addCircleMarkers(layerId="selected",data = filter(stations, STATION_NUMBER %in% values$Station), ~LONGITUDE, ~LATITUDE, color = "green", radius = 6)
   })
   
   
   # Updates the selection station by clicking on the marker
-  observeEvent(input$map_marker_click, { # update the location selectInput on map clicks
-    updateSelectizeInput(session, "station", selected=input$map_marker_click$id)
-  })
   
   
   observeEvent(input$stationsMapAdd, {
@@ -949,7 +986,7 @@ server <- function(input, output, session) {
   
   allstationsTable <- reactive({
     
-    stn.meta.HYDAT <- stations %>% filter(STATION_NUMBER==stations.list)#input$station)
+    stn.meta.HYDAT <- stations %>% filter(STATION_NUMBER==stations.list)#values$Station)
     
     stn.info <-stn.meta.HYDAT[,c(1:4,7:13)] %>% 
       mutate(DRAINAGE_AREA_GROSS=round(DRAINAGE_AREA_GROSS,2)) %>% 
@@ -972,8 +1009,13 @@ server <- function(input, output, session) {
   ) 
   
   proxy = DT::dataTableProxy('allstationsTable')
-  observeEvent(input$station, {
-    proxy %>% DT::selectRows(which(stations.list == input$station))
+  
+  
+  output$mapDA <- renderUI({
+    sliderInput("mapDA", label = "Drainage area (sqkm):", 
+                min = min(stations$DRAINAGE_AREA_GROSS,na.rm = T), 
+                max = max(stations$DRAINAGE_AREA_GROSS,na.rm = T), 
+                value = c(min(stations$DRAINAGE_AREA_GROSS,na.rm = T), max(stations$DRAINAGE_AREA_GROSS,na.rm = T)))
   })
   
   
