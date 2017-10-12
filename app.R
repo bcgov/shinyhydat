@@ -22,7 +22,7 @@ library(tidyr)
 library(leaflet)
 library(tidyhydat)
 library(plotly)
-
+library(httr)
 
 ### Set path to HYDAT
 HYDAT.path <- "Hydat.sqlite3" 
@@ -238,7 +238,13 @@ server <- function(input, output, session) {
   #### HYDAT VERSION
   
   output$onlineHYDAT <- renderText({
-    paste0("Available: ",as.Date(substr(gsub("^.*\\Hydat_sqlite3_","",RCurl::getURL("http://collaboration.cmc.ec.gc.ca/cmc/hydrometrics/www/")), 1,8), "%Y%m%d"))
+    base_url <- "http://collaboration.cmc.ec.gc.ca/cmc/hydrometrics/www/"
+    x <- httr::GET(base_url)
+    new_hydat <- substr(gsub(
+      "^.*\\Hydat_sqlite3_", "",
+      httr::content(x, "text")
+    ), 1, 8)
+    paste0("Available: ",as.Date(new_hydat, "%Y%m%d"))
     
   })
   output$localHYDAT <- renderText({
