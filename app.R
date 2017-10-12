@@ -317,12 +317,12 @@ server <- function(input, output, session) {
   ### Check HYDAT version ###
   ###########################
   
-  # output$onlineHYDAT <- renderText({
-  #   paste0("Available: ",
-  #          as.Date(substr(gsub("^.*\\Hydat_sqlite3_","",RCurl::getURL("http://collaboration.cmc.ec.gc.ca/cmc/hydrometrics/www/")),
-  #                         1,8), "%Y%m%d"))
-  #   
-  # })
+  output$onlineHYDAT <- renderText({
+    paste0("Available: ",
+           as.Date(substr(gsub("^.*\\Hydat_sqlite3_","",RCurl::getURL("http://collaboration.cmc.ec.gc.ca/cmc/hydrometrics/www/")),
+                          1,8), "%Y%m%d"))
+
+  })
   output$localHYDAT <- renderText({
     paste0("Local: ",as.Date(as.data.frame(VERSION(HYDAT.path))[,2]))
     
