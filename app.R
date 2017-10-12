@@ -108,7 +108,7 @@ ui <- dashboardPage(
                                           br(),br(),
                                           fluidRow(box(width = 6,title = "Graph Options",status = "primary",
                                                        fluidRow(column(5, uiOutput("ltParam"),
-                                                                       checkboxInput("ltlog", label = "Log scale on primary Y-axis", value= FALSE)),
+                                                                       checkboxInput("ltlog", label = "Log scale on 'Discharge' axis", value= FALSE)),
                                                                 column(2),
                                                                 column(5, uiOutput("paramSymbol")))
                                           ))
@@ -165,9 +165,9 @@ ui <- dashboardPage(
                                                                 column(1),
                                                                 column(4,
                                                                        uiOutput("monthStat"),
-                                                                       checkboxInput("monthMaxMin","Display Maximum-Minimum Range",value=TRUE),
-                                                                       checkboxInput("month90","Display Upper-Lower Quartile range",value=TRUE),
-                                                                       checkboxInput("month50","Display Upper-Lower Quartile range",value=TRUE)),
+                                                                       checkboxInput("monthMaxMin","Display Maximum-Minimum range",value=TRUE),
+                                                                       checkboxInput("month90","Display 5-95 percentile range",value=TRUE),
+                                                                       checkboxInput("month50","Display 25-75 percentile range",value=TRUE)),
                                                                 column(1),
                                                                 column(3,uiOutput("monthYear"),
                                                                        uiOutput("monthYearStat")))))
@@ -196,7 +196,7 @@ ui <- dashboardPage(
                                                                 column(1),
                                                                 column(4,
                                                                        uiOutput("dailyStat"),
-                                                                       checkboxInput("dailyMaxMin","Display Maximum-Minimum Range",value=TRUE),
+                                                                       checkboxInput("dailyMaxMin","Display Maximum-Minimum range",value=TRUE),
                                                                        checkboxInput("daily90","Display 5-95 percentile range",value=TRUE),
                                                                        checkboxInput("daily50","Display 25-75 percentile range",value=TRUE)),
                                                                 column(1),
@@ -215,11 +215,14 @@ ui <- dashboardPage(
                       textOutput("rtExists"),tags$head(tags$style("#rtExists{color: white}")),
                       conditionalPanel(
                         condition = "output.rtExists=='Yes'",
-                        fluidRow(column(3, checkboxInput("rtlog", label = "Plot Discharge axis on log scale", value= FALSE)),
-                                 column(3, downloadButton('download.rtData', 'Download Data'))),
+                        fluidRow(column(3, downloadButton('download.rtData', 'Download Data'))),
+                        br(),
                         fluidRow(column(12,h4(textOutput("rtplot.title")))),
                         fluidRow(column(12,plotlyOutput('rtplot'))),
-                        fluidRow(column(12,uiOutput("rtParam"))))),
+                        br(),br(),
+                        fluidRow(box(width =4,title = "Graph Options",status = "primary",
+                                     fluidRow(column(12,uiOutput("rtParam"),
+                                                     checkboxInput("rtlog", label = "Log scale on 'Discharge' axis", value= FALSE))))))),
              tabPanel("Station Comparison")
       )
     )
@@ -488,7 +491,7 @@ server <- function(input, output, session) {
   })
   
   output$annualParam <- renderUI({
-    selectInput("annualParam", label = "Display parameters:",choices = as.list(unique(annualData()$Parameter)))
+    selectInput("annualParam", label = "Display parameter:",choices = as.list(unique(annualData()$Parameter)))
   })
   
   output$annualPlot.title <- renderText({
@@ -507,7 +510,8 @@ server <- function(input, output, session) {
       
     plot <- plot_ly() %>% 
       layout(xaxis=list(title="Year"),
-             yaxis=annualPlot.y())
+             yaxis=annualPlot.y(),
+             showlegend = TRUE)
     
     # Add annual statistic
     if ("MAX" %in% input$annualStat){plot <- plot %>%  add_trace(data=plot.data %>% filter(Sum_stat=="MAX"),x= ~Year,y=~Value,name="Daily Maximum",color=I("red"),mode = 'lines+markers',text=~paste("On",Date," ",Symbol))}
@@ -624,7 +628,8 @@ server <- function(input, output, session) {
     
     plot <- plot_ly() %>% 
       layout(xaxis=list(title="Month",tickvals = seq(1:12),ticktext = c("Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Noc","Dec")),
-             yaxis=monthlyPlot.y())
+             yaxis=monthlyPlot.y(),
+             showlegend = TRUE)
     
     # Add ribbons if checked
     if (input$monthMaxMin){plot <- plot %>%  add_ribbons(data=plot.data,x= ~Month,ymin= ~Minimum, ymax= ~Maximum,name="Max-Min Range",color=I("lightblue2"))}
@@ -742,7 +747,8 @@ server <- function(input, output, session) {
     
     plot <- plot_ly() %>% 
       layout(xaxis=list(title="Day of Year",tickformat= "%b-%d"),
-             yaxis=dailyPlot.y())
+             yaxis=dailyPlot.y(),
+             showlegend = TRUE)
     
     
     # Add ribbons if checked
@@ -830,7 +836,7 @@ server <- function(input, output, session) {
   })
   
   output$rtParam <- renderUI({
-    selectizeInput("rtParam","Parameters to plot:",choices=as.list(unique(realtimeData()$Parameter)),selected=as.list(unique(realtimeData()$Parameter)), multiple =TRUE)
+    selectizeInput("rtParam","Display parameters:",choices=as.list(unique(realtimeData()$Parameter)),selected=as.list(unique(realtimeData()$Parameter)), multiple =TRUE)
   })
   
   
