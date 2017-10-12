@@ -24,18 +24,15 @@ library(tidyhydat)
 library(plotly)
 library(httr)
 
-### Set path to HYDAT
-HYDAT.path <- "Hydat.sqlite3" 
 
 ## Create a dataframe of all station metadata and a list of all stations
-stations <- STATIONS(HYDAT.path,
-                     PROV_TERR_STATE_LOC = "BC") %>%  #c("AB","BC","SK","MB","ON","QC","NB","NS","PE","NL","YT","NT","NU")
-  left_join(AGENCY_LIST(HYDAT.path), by = c("CONTRIBUTOR_ID" = "AGENCY_ID")) %>% rename("CONTRIBUTOR"=AGENCY_EN) %>% 
-  left_join(AGENCY_LIST(HYDAT.path), by = c("OPERATOR_ID" = "AGENCY_ID")) %>%  rename("OPERATOR"=AGENCY_EN) %>% 
-  left_join(DATUM_LIST(HYDAT.path), by = c("DATUM_ID" = "DATUM_ID")) %>% rename("DATUM"=DATUM_EN) %>% 
+stations <- STATIONS(PROV_TERR_STATE_LOC = "BC") %>%  #c("AB","BC","SK","MB","ON","QC","NB","NS","PE","NL","YT","NT","NU")
+  left_join(AGENCY_LIST(), by = c("CONTRIBUTOR_ID" = "AGENCY_ID")) %>% rename("CONTRIBUTOR"=AGENCY_EN) %>% 
+  left_join(AGENCY_LIST(), by = c("OPERATOR_ID" = "AGENCY_ID")) %>%  rename("OPERATOR"=AGENCY_EN) %>% 
+  left_join(DATUM_LIST(), by = c("DATUM_ID" = "DATUM_ID")) %>% rename("DATUM"=DATUM_EN) %>% 
   mutate(REGIONAL_OFFICE_ID = as.integer(REGIONAL_OFFICE_ID)) %>% 
-  left_join(REGIONAL_OFFICE_LIST(HYDAT.path), by = c("REGIONAL_OFFICE_ID" = "REGIONAL_OFFICE_ID")) %>% rename("REGIONAL_OFFICE"=REGIONAL_OFFICE_NAME_EN) %>% 
-  left_join(STN_REGULATION(HYDAT.path), by="STATION_NUMBER") %>% 
+  left_join(REGIONAL_OFFICE_LIST(), by = c("REGIONAL_OFFICE_ID" = "REGIONAL_OFFICE_ID")) %>% rename("REGIONAL_OFFICE"=REGIONAL_OFFICE_NAME_EN) %>% 
+  left_join(STN_REGULATION(), by="STATION_NUMBER") %>% 
   select(STATION_NUMBER,STATION_NAME,PROV_TERR_STATE_LOC,HYD_STATUS,LATITUDE,LONGITUDE,DRAINAGE_AREA_GROSS,RHBN,REAL_TIME,REGULATED,CONTRIBUTOR,OPERATOR,REGIONAL_OFFICE,DATUM)
 stations.list <- as.list(stations$STATION_NUMBER)
 
@@ -248,7 +245,7 @@ server <- function(input, output, session) {
     
   })
   output$localHYDAT <- renderText({
-    paste0("Local: ",as.Date(as.data.frame(VERSION(HYDAT.path))[,2]))
+    paste0("Local: ",as.Date(as.data.frame(VERSION())[,2]))
     
   })
   
@@ -307,17 +304,17 @@ server <- function(input, output, session) {
   ###################################################################################
   
   dailyData <- reactive({
-    check <- STN_DATA_RANGE(HYDAT.path, STATION_NUMBER=input$station) %>% filter(DATA_TYPE=="Q"|DATA_TYPE=="H")
+    check <- STN_DATA_RANGE( STATION_NUMBER=input$station) %>% filter(DATA_TYPE=="Q"|DATA_TYPE=="H")
     
     if ("Q" %in% check$DATA_TYPE & "H" %in% check$DATA_TYPE) { # both Q and H
-      daily.flow.HYDAT <- DLY_FLOWS(hydat_path = HYDAT.path, STATION_NUMBER=input$station)
-      daily.levels.HYDAT <- DLY_LEVELS(hydat_path = HYDAT.path, STATION_NUMBER=input$station)
+      daily.flow.HYDAT <- DLY_FLOWS(STATION_NUMBER=input$station)
+      daily.levels.HYDAT <- DLY_LEVELS(STATION_NUMBER=input$station)
       daily.data <- rbind(daily.flow.HYDAT[,c(2:5)],daily.levels.HYDAT[,c(2:5)])
     } else if ("Q" %in% check$DATA_TYPE & !("H" %in% check$DATA_TYPE)) { # just Q
-      daily.flow.HYDAT <- DLY_FLOWS(hydat_path = HYDAT.path, STATION_NUMBER=input$station)
+      daily.flow.HYDAT <- DLY_FLOWS(STATION_NUMBER=input$station)
       daily.data <- daily.flow.HYDAT[,c(2:5)]
     } else if (!("Q" %in% check$DATA_TYPE) & "H" %in% check$DATA_TYPE) { # just H
-      daily.levels.HYDAT <- DLY_LEVELS(hydat_path = HYDAT.path, STATION_NUMBER=input$station)
+      daily.levels.HYDAT <- DLY_LEVELS(STATION_NUMBER=input$station)
       daily.data <- daily.levels.HYDAT[,c(2:5)]
     }
     
@@ -412,7 +409,7 @@ server <- function(input, output, session) {
       select(Date,Year,Month,Parameter,Value,Symbol)
     
     
-    check <- STN_DATA_RANGE(HYDAT.path, STATION_NUMBER=input$station) %>% filter(DATA_TYPE=="Q"|DATA_TYPE=="H")
+    check <- STN_DATA_RANGE(STATION_NUMBER=input$station) %>% filter(DATA_TYPE=="Q"|DATA_TYPE=="H")
     if ("Q" %in% check$DATA_TYPE & "H" %in% check$DATA_TYPE) { # both Q and H
       data2 <- data %>% filter(Parameter=="FLOW") %>% mutate("Flow (cms)"=Value,"Flow Symbol"=Symbol)%>% select(-Parameter,-Value,-Symbol)
       data3 <- data %>% filter(Parameter=="LEVEL") %>% mutate("Water Level (m)"=Value,"Water Level Symbol"=Symbol)%>% select(-Parameter,-Value,-Symbol)
@@ -449,7 +446,7 @@ server <- function(input, output, session) {
   
   annualData <- reactive({
     
-    annual <- ANNUAL_STATISTICS(hydat_path = HYDAT.path, STATION_NUMBER=input$station) %>% 
+    annual <- ANNUAL_STATISTICS(STATION_NUMBER=input$station) %>% 
       filter(Parameter=="Flow" | Parameter == "Water Level")
     
     # Fill in missing years
@@ -473,7 +470,7 @@ server <- function(input, output, session) {
   })
   
   annualInstantData <- reactive({
-    annual.instant <- ANNUAL_INSTANT_PEAKS(hydat_path = HYDAT.path, STATION_NUMBER=input$station)
+    annual.instant <- ANNUAL_INSTANT_PEAKS(STATION_NUMBER=input$station)
     
     annual.instant <- annual.instant %>% 
       mutate(Date=as.Date(paste(YEAR,MONTH,DAY,sep="-"),format="%Y-%m-%d"),
@@ -572,22 +569,22 @@ server <- function(input, output, session) {
   })
   
   allmonthData <- reactive({
-    check <- STN_DATA_RANGE(HYDAT.path, STATION_NUMBER=input$station) %>% filter(DATA_TYPE=="Q"|DATA_TYPE=="H")
+    check <- STN_DATA_RANGE(STATION_NUMBER=input$station) %>% filter(DATA_TYPE=="Q"|DATA_TYPE=="H")
     
     if ("Q" %in% check$DATA_TYPE & "H" %in% check$DATA_TYPE) { # both Q and H
-      monthly.flows.hydat <- MONTHLY_FLOWS(hydat_path = HYDAT.path, STATION_NUMBER=input$station) %>% 
+      monthly.flows.hydat <- MONTHLY_FLOWS(STATION_NUMBER=input$station) %>% 
         mutate(Parameter="FLOW")
-      monthly.levels.hydat <- MONTHLY_LEVELS(hydat_path = HYDAT.path, STATION_NUMBER=input$station) %>% 
+      monthly.levels.hydat <- MONTHLY_LEVELS(STATION_NUMBER=input$station) %>% 
         select(-PRECISION_CODE) %>% mutate(Parameter="LEVEL")
       monthly.data <- rbind(monthly.flows.hydat,monthly.levels.hydat) %>% 
         select(Parameter,YEAR,MONTH,Sum_stat,Value,Date_occurred)
     } else if ("Q" %in% check$DATA_TYPE & !("H" %in% check$DATA_TYPE)) { # just Q
-      monthly.flows.hydat <- MONTHLY_FLOWS(hydat_path = HYDAT.path, STATION_NUMBER=input$station) %>% 
+      monthly.flows.hydat <- MONTHLY_FLOWS(STATION_NUMBER=input$station) %>% 
         mutate(Parameter="FLOW")
       monthly.data <- monthly.flows.hydat %>% 
         select(Parameter,YEAR,MONTH,Sum_stat,Value,Date_occurred)
     } else if (!("Q" %in% check$DATA_TYPE) & "H" %in% check$DATA_TYPE) { # just H
-      monthly.levels.hydat <- MONTHLY_LEVELS(hydat_path = HYDAT.path, STATION_NUMBER=input$station) %>% 
+      monthly.levels.hydat <- MONTHLY_LEVELS(STATION_NUMBER=input$station) %>% 
         select(-PRECISION_CODE) %>% mutate(Parameter="LEVEL")
       monthly.data <- monthly.levels.hydat %>% 
         select(Parameter,YEAR,MONTH,Sum_stat,Value,Date_occurred)
