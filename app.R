@@ -54,7 +54,8 @@ ui <- dashboardPage(
       br(),
       h4("HYDAT versions:"),
       textOutput("localHYDAT"),
-      textOutput("onlineHYDAT")
+      textOutput("onlineHYDAT")#,
+      #actionButton("downloadHYDAT","Download HYDAT")  #NEED TO MOVE QUESTION FROM CONSOLE TO WINDOW
     )
     
     
@@ -106,13 +107,10 @@ ui <- dashboardPage(
                                           fluidRow(column(12,plotlyOutput('ltplot'))),
                                           br(),br(),
                                           fluidRow(box(width = 6,title = "Graph Options",status = "primary",
-                                                       fluidRow(column(6, uiOutput("ltParam"),
-                                                                       checkboxInput("ltlog", label = "Plot Y-axis on log scale", value= FALSE)),
-                                                                column(6, checkboxInput("plotSymbol", label = "Plot data grade symbol"),
-                                                                       uiOutput("paramSymbol"))),
-                                                       h4("SELECTIZE BOX OR GROUPCHECKBOXES/RADIO BUTTONS TO SELECT WHATS ON GRAPH")
-                                                       #checkboxInput("ltStage", label = "Plot Stage axis", value= TRUE),
-                                                       #checkboxInput("ltDischarge", label = "Plot Discharge axis", value= TRUE))
+                                                       fluidRow(column(5, uiOutput("ltParam"),
+                                                                       checkboxInput("ltlog", label = "Log scale on primary Y-axis", value= FALSE)),
+                                                                column(2),
+                                                                column(5, uiOutput("paramSymbol")))
                                           ))
                                           
                                  ),
@@ -127,7 +125,6 @@ ui <- dashboardPage(
                       # Historical Annual
                       conditionalPanel(
                         condition = "input.histView == 'Annual'",
-                        uiOutput("annualParam"),
                         fluidRow(column(3, downloadButton('download.annualData', 'Download Data'))),
                         br(),
                         fluidRow(
@@ -135,14 +132,16 @@ ui <- dashboardPage(
                                  tabPanel("Graph",
                                           fluidRow(column(12,h4(textOutput("annualPlot.title")))),
                                           fluidRow(column(12,plotlyOutput('annualPlot'))),
-                                          fluidPage(tags$hr()),
-                                          fluidRow(column(3, uiOutput("annualStat"), 
-                                                          checkboxInput("annuallog", label = "Plot Y-axis on log scale", value= FALSE)),
-                                                   column(4, uiOutput("annualInstantStat"))),
                                           h5("* Mean values produced only for years of complete data"),
-                                          h4("*** ADD DATA TABLE BELOW OR IN NEW TAB with GRAPH TAB"),
-                                          h4("SELECTIZE BOX OR GROUPCHECKBOXES/RADIO BUTTONS TO SELECT WHATS ON GRAPH")
-                                          
+                                          br(),br(),
+                                          fluidRow(box(width = 6,title = "Graph Options",status = "primary",
+                                                       fluidRow(column(5,
+                                                                       uiOutput("annualParam"), 
+                                                                       checkboxInput("annuallog", label = "Log scale on primary Y-axis", value= FALSE)),
+                                                                column(2),
+                                                                column(5,uiOutput("annualStat"),
+                                                                       uiOutput("annualInstantStat")))
+                                          ))
                                  ),
                                  tabPanel("Table")
                           )
@@ -151,7 +150,6 @@ ui <- dashboardPage(
                       # Historical Monthly
                       conditionalPanel(
                         condition = "input.histView == 'Monthly'",
-                        uiOutput("monthParam"),
                         fluidRow(column(3, downloadButton('download.monthData', 'Download Data'))),
                         br(),
                         fluidRow(
@@ -159,26 +157,31 @@ ui <- dashboardPage(
                                  tabPanel("Graph",
                                           fluidRow(column(12,h4(textOutput("monthPlot.title")))),
                                           fluidRow(column(12,plotlyOutput('monthPlot'))),
-                                          fluidPage(tags$hr()),
-                                          fluidRow(column(3, checkboxInput("monthlog", label = "Plot Y-axis on log scale", value= FALSE),
-                                                          uiOutput("monthStat"),
-                                                          checkboxInput("monthMaxMin","Fill Maximum-Minimum Range",value=TRUE),
-                                                          checkboxInput("monthNormal","Fill Upper-Lower Quartile range",value=TRUE))),
                                           h5("* Missing dates ignored"),
-                                          h5("*** ADD TABLE AND YEAR OF MAX VALUE and LIST THE YEARS INCLUDED"),
-                                          h5("*** ADD if statements plot code to specify colours"),
-                                          h4("SELECTIZE BOX OR GROUPCHECKBOXES/RADIO BUTTONS TO SELECT WHATS ON GRAPH"),
-                                          fluidRow(column(6,uiOutput("monthYear")),
-                                                   column(6,uiOutput("monthYearStat")))
+                                          br(),br(),
+                                          fluidRow(box(width = 9,title = "Graph Options",status = "primary",
+                                                       fluidRow(column(3,uiOutput("monthParam"),
+                                                                       checkboxInput("monthlog", label = "Log scale on primary Y-axis", value= FALSE)),
+                                                                column(1),
+                                                                column(4,
+                                                                       uiOutput("monthStat"),
+                                                                       checkboxInput("monthMaxMin","Display Maximum-Minimum Range",value=TRUE),
+                                                                       checkboxInput("month90","Display Upper-Lower Quartile range",value=TRUE),
+                                                                       checkboxInput("month50","Display Upper-Lower Quartile range",value=TRUE)),
+                                                                column(1),
+                                                                column(3,uiOutput("monthYear"),
+                                                                       uiOutput("monthYearStat")))))
                                  ),
-                                 tabPanel("Table")
+                                 tabPanel("Table",
+                                          h5("*** ADD TABLE AND YEAR OF MAX VALUE and LIST THE YEARS INCLUDED"),
+                                          h5("*** ADD if statements plot code to specify colours")
+                                 )
                           )
                         )
                       ),
                       
                       conditionalPanel(
                         condition = "input.histView == 'Daily'",
-                        uiOutput("dailyParam"),
                         fluidRow(column(3, downloadButton('download.dailySummaryData', 'Download Data'))),
                         br(),
                         fluidRow(
@@ -186,20 +189,37 @@ ui <- dashboardPage(
                                  tabPanel("Graph",
                                           fluidRow(column(12,h4(textOutput("dailyPlot.title")))),
                                           fluidRow(column(12,plotlyOutput('dailyPlot'))),
-                                          fluidPage(tags$hr()),
-                                          fluidRow(column(3, checkboxInput("dailylog", label = "Plot Y-axis on log scale", value= FALSE))),
+                                          br(),br(),
+                                          fluidRow(box(width = 9,title = "Graph Options",status = "primary",
+                                                       fluidRow(column(3,uiOutput("dailyParam"),
+                                                                       checkboxInput("dailylog", label = "Log scale on primary Y-axis", value= FALSE)),
+                                                                column(1),
+                                                                column(4,
+                                                                       uiOutput("dailyStat"),
+                                                                       checkboxInput("dailyMaxMin","Display Maximum-Minimum Range",value=TRUE),
+                                                                       checkboxInput("daily90","Display 5-95 percentile range",value=TRUE),
+                                                                       checkboxInput("daily50","Display 25-75 percentile range",value=TRUE)),
+                                                                column(1),
+                                                                column(3,uiOutput("dailyYear")))
+                                          ))
+                                 ),
+                                 tabPanel("Table",
                                           h4("SELECTIZE BOX OR GROUPCHECKBOXES/RADIO BUTTONS TO SELECT WHATS ON GRAPH"),
-                                          h4("add station number column to all outputted datasets"),
-                                          fluidRow(column(6,uiOutput("dailyYear")))
+                                          h4("add station number column to all outputted datasets")
                                  )
+                                          
                           )))
              ),
              tabPanel("Real-time Data",
-                      fluidRow(column(6, textOutput("noRT"))),
-                      fluidRow(column(3, checkboxInput("rtlog", label = "Plot Discharge axis on log scale", value= FALSE)),
-                               column(3, downloadButton('download.rtData', 'Download Data'))),
-                      fluidRow(column(12,h4(textOutput("rtplot.title")))),
-                      fluidRow(column(12,plotlyOutput('rtplot')))),
+                      fluidRow(column(6, h4(textOutput("noRT")))),
+                      textOutput("rtExists"),tags$head(tags$style("#rtExists{color: white}")),
+                      conditionalPanel(
+                        condition = "output.rtExists=='Yes'",
+                        fluidRow(column(3, checkboxInput("rtlog", label = "Plot Discharge axis on log scale", value= FALSE)),
+                                 column(3, downloadButton('download.rtData', 'Download Data'))),
+                        fluidRow(column(12,h4(textOutput("rtplot.title")))),
+                        fluidRow(column(12,plotlyOutput('rtplot'))),
+                        fluidRow(column(12,uiOutput("rtParam"))))),
              tabPanel("Station Comparison")
       )
     )
@@ -312,7 +332,7 @@ server <- function(input, output, session) {
                 maxDate=as.numeric(format(max(Date),'%Y')))
   })
   
-
+  
   ### Historical Long-term Data
   ###################################################################################
   
@@ -321,7 +341,7 @@ server <- function(input, output, session) {
     sliderInput("histYears",label="Filter data between the following years:",min=histDates()$minDate,max=histDates()$maxDate,value=c(histDates()$minDate,histDates()$maxDate),sep = "")
   })
   output$paramSymbol <- renderUI({
-    selectInput("paramSymbol", label = "Symbol parameter:",choices = as.list(unique(dailyData()$Parameter)))
+    selectizeInput("paramSymbol", label = "Add data symbols:",choices = as.list(unique(dailyData()$Parameter)),multiple =TRUE)
   })
   
   output$ltplot.title <- renderText({
@@ -329,16 +349,12 @@ server <- function(input, output, session) {
   })
   
   output$ltParam <- renderUI({
-    selectizeInput("ltParam","Parameters to plot:",choices=as.list(unique(dailyData()$Parameter)),selected=as.list(unique(dailyData()$Parameter)), multiple =TRUE)
+    selectizeInput("ltParam","Display parameters:",choices=as.list(unique(dailyData()$Parameter)),selected=as.list(unique(dailyData()$Parameter)), multiple =TRUE)
   })
   
   ltplot.y <- reactive({
-    if (input$ltlog) {
-      list(title= "Discharge (cms)",
-           type= "log")
-    } else {
-      list(title= "Discharge (cms)")
-    }
+    if (input$ltlog) {list(title= "Discharge (cms)",type= "log")}
+    else {            list(title= "Discharge (cms)")}
   })
   
   output$ltplot <- renderPlotly({
@@ -347,7 +363,10 @@ server <- function(input, output, session) {
              Symbol=replace(Symbol, Symbol=="A", "Partial Day"),
              Symbol=replace(Symbol, Symbol=="B", "Ice conditions"),
              Symbol=replace(Symbol, Symbol=="D", "Dry"),
-             Symbol=replace(Symbol, Symbol=="R", "Revised"))
+             Symbol=replace(Symbol, Symbol=="R", "Revised"),
+             Year=as.numeric(format(Date,'%Y'))) %>% 
+      filter(Year >= input$histYears[1] & Year <= input$histYears[2])
+    
     
     if (length(input$ltParam)==2) {
       plot <-  plot_ly() %>%
@@ -361,24 +380,24 @@ server <- function(input, output, session) {
       plot <- plot_ly() %>%
         add_lines(data=plot.data %>% filter(Parameter=="FLOW"),x= ~Date,y= ~Value, name="Discharge",text=~Symbol) %>%
         layout(xaxis=list(title="Date"),
-               yaxis=ltplot.y())
+               yaxis=ltplot.y(),
+               showlegend = TRUE)
     } else if (length(input$ltParam)==1 & input$ltParam=="LEVEL") {
       plot <-plot_ly() %>%
         add_lines(data=plot.data %>% filter(Parameter=="LEVEL"),x= ~Date,y= ~Value, name="Water Level") %>%
         layout(xaxis=list(title="Date"),
-               yaxis=list(title = "Water Level (m)"))
+               yaxis=list(title = "Water Level (m)"),
+               showlegend = TRUE)
     }
     
-    if (input$plotSymbol) {
-      plot %>% add_markers(data=plot.data %>% filter(Parameter==input$paramSymbol),x= ~Date,y= 0, color= ~Symbol)
-    } else {
-      plot
-    }
+    # Add data symbol to plot
+    if (length(input$paramSymbol)>0) {plot <- plot %>% add_markers(data=plot.data %>% filter(Parameter %in% input$paramSymbol),x= ~Date,y= 0, color= ~Symbol)}
+    
+    plot
   })
   
   ltTableOutput <- reactive({
     data <- dailyData() %>% mutate(Value=round(Value,3),
-                                   #data <- daily.data %>% mutate(Value=round(Value,3),
                                    Year=as.integer(format(Date,'%Y')),
                                    Month=as.character(format(Date,'%B'))) %>%
       select(Date,Year,Month,Parameter,Value,Symbol)
@@ -396,7 +415,7 @@ server <- function(input, output, session) {
     }
     data2
   })
-
+  
   output$ltTable <- DT::renderDataTable(
     ltTableOutput(),
     rownames=FALSE,
@@ -406,7 +425,7 @@ server <- function(input, output, session) {
                    scrollY=600,deferRender = TRUE,scroller = TRUE,
                    columnDefs = list(list(className = 'dt-center', targets = 0:2)))
   ) 
-
+  
   #Download data button
   output$download.ltData <- downloadHandler(
     filename = function() {paste0(metaData()[1,2]," - daily discharge.csv")},
@@ -450,21 +469,26 @@ server <- function(input, output, session) {
     annual.instant <- annual.instant %>% 
       mutate(Date=as.Date(paste(YEAR,MONTH,DAY,sep="-"),format="%Y-%m-%d"),
              Time=paste0(HOUR,":",ifelse(nchar(MINUTE)>1,paste(MINUTE),paste0(0,MINUTE))," ",TIME_ZONE),
-             DateTime=paste0("On ",Date," at ",Time))
+             DateTime=paste0("On ",Date," at ",Time),
+             Symbol=replace(Symbol, is.na(Symbol), "")) %>% 
+      filter(YEAR >= input$histYears[1] & YEAR <= input$histYears[2])
+    annual.instant
     
   })
   
-
-  output$annualStat <- renderUI({
-    selectizeInput("annualStat", label = "Annual statistic:",choices = as.list(unique(annualData()[annualData()$Parameter == input$annualParam,]$Sum_stat)),multiple =TRUE,
-                   selected = as.list(unique(annualData()[annualData()$Parameter == input$annualParam,]$Sum_stat)))
+  annualStatsList <- reactive({
+    c("Mean"="MEAN","Maximum"="MAX","Minimum"="MIN")
   })
+  output$annualStat <- renderUI({
+    selectizeInput("annualStat", label = "Display annual statistic(s):",choices = annualStatsList(),selected = annualStatsList(),multiple =TRUE)
+  })
+  
   output$annualInstantStat <- renderUI({
-    selectizeInput("annualInstantStat", label = "Annual instantaneous extreme:",choices = as.list(unique(annualInstantData()[annualInstantData()$Parameter == input$annualParam,]$PEAK_CODE)),multiple =TRUE)
+    selectizeInput("annualInstantStat", label = "Display annual instantaneous extreme values:",choices = as.list(unique(annualInstantData()[annualInstantData()$Parameter == input$annualParam,]$PEAK_CODE)),multiple =TRUE)
   })
   
   output$annualParam <- renderUI({
-    selectInput("annualParam", label = "Parameter:",choices = as.list(unique(annualData()$Parameter)))
+    selectInput("annualParam", label = "Display parameters:",choices = as.list(unique(annualData()$Parameter)))
   })
   
   output$annualPlot.title <- renderText({
@@ -473,26 +497,26 @@ server <- function(input, output, session) {
   
   
   annualPlot.y <- reactive({
-    if (input$annuallog) {
-      list(title=ifelse(input$annualParam== "Flow","Discharge (cms)","Water Level (m)"),
-           type= "log")
-    } else {
-      list(title=ifelse(input$annualParam== "Flow","Discharge (cms)","Water Level (m)"))
-    }
+    if (input$annuallog) {list(title=ifelse(input$annualParam== "Flow","Discharge (cms)","Water Level (m)"),type= "log")}
+    else {                list(title=ifelse(input$annualParam== "Flow","Discharge (cms)","Water Level (m)"))}
   })
   
   output$annualPlot <- renderPlotly({
+    
+    plot.data <- annualData() %>% filter(Parameter==input$annualParam)
+      
     plot <- plot_ly() %>% 
-      add_trace(data=annualData() %>% filter(Parameter==input$annualParam & Sum_stat %in% input$annualStat),x= ~Year,y= ~Value, color=~Sum_stat,mode = 'lines+markers') %>% 
       layout(xaxis=list(title="Year"),
              yaxis=annualPlot.y())
     
-    if ("MAX" %in% input$annualInstantStat){
-      plot <- plot %>%  add_markers(data=annualInstantData() %>% filter(Parameter==input$annualParam & PEAK_CODE == "MAX"),x= ~YEAR,y= ~Value, name="Instant. Maximum",marker=list(symbol=2,size=8), text=~DateTime)
-    } 
-    if ("MIN" %in% input$annualInstantStat){
-      plot <- plot %>%  add_markers(data=annualInstantData() %>% filter(Parameter==input$annualParam & PEAK_CODE == "MIN"),x= ~YEAR,y= ~Value, name="Instant. Minimum",marker=list(symbol=2,size=8), text=~DateTime)
-    }
+    # Add annual statistic
+    if ("MAX" %in% input$annualStat){plot <- plot %>%  add_trace(data=plot.data %>% filter(Sum_stat=="MAX"),x= ~Year,y=~Value,name="Daily Maximum",color=I("red"),mode = 'lines+markers',text=~paste("On",Date," ",Symbol))}
+    if ("MEAN" %in% input$annualStat){plot <- plot %>%  add_trace(data=plot.data %>% filter(Sum_stat=="MEAN"),x= ~Year,y=~Value,name="Daily Mean",color=I("blue"),mode = 'lines+markers')}
+    if ("MIN" %in% input$annualStat){plot <- plot %>%  add_trace(data=plot.data %>% filter(Sum_stat=="MIN"),x= ~Year,y=~Value,name="Daily Minimum",color=I("green"),mode = 'lines+markers',text=~paste("On",Date," ",Symbol))}
+    
+    # Add instantaneous peaks
+    if ("MAX" %in% input$annualInstantStat){plot <- plot %>%  add_markers(data=annualInstantData() %>% filter(Parameter==input$annualParam & PEAK_CODE == "MAX"),x= ~YEAR,y= ~Value, name="Instanteous Maximum",marker=list(symbol=2,size=8), text=~paste0(DateTime," ",Symbol))} 
+    if ("MIN" %in% input$annualInstantStat){plot <- plot %>%  add_markers(data=annualInstantData() %>% filter(Parameter==input$annualParam & PEAK_CODE == "MIN"),x= ~YEAR,y= ~Value, name="Instanteous Minimum",marker=list(symbol=2,size=8), text=~paste0(DateTime," ",Symbol))}
     
     plot
   })
@@ -529,9 +553,11 @@ server <- function(input, output, session) {
                 Maximum=max(Value, na.rm=TRUE),
                 Minimum=min(Value, na.rm=TRUE),
                 Median=median(Value, na.rm=TRUE),
-                UpperQuartile=quantile(Value,.75, na.rm=TRUE),
-                LowerQuartile=quantile(Value,.25,na.rm=TRUE)) %>% 
-      gather(Stat,Value,3:8)
+                Percentile75=quantile(Value,.75, na.rm=TRUE),
+                Percentile25=quantile(Value,.25,na.rm=TRUE),
+                Percentile95=quantile(Value,.95,na.rm=TRUE),
+                Percentile5=quantile(Value,.05,na.rm=TRUE)) %>% 
+      gather(Stat,Value,3:10)
     month.data
   })
   
@@ -564,20 +590,23 @@ server <- function(input, output, session) {
   
   
   output$monthParam <- renderUI({
-    selectInput("monthParam", label = "Parameter:",choices = as.list(unique(monthData()$Parameter)))
+    selectInput("monthParam", label = "Display parameter:",choices = as.list(unique(monthData()$Parameter)))
   })
   
   output$monthYear <- renderUI({
-    selectizeInput("monthYear", label = "Add year(s) to graph:",choices = as.list(unique(allmonthData()[allmonthData()$Parameter == input$monthParam,]$YEAR)),multiple =TRUE)
+    selectizeInput("monthYear", label = "Select year(s) to display:",choices = as.list(unique(allmonthData()[allmonthData()$Parameter == input$monthParam,]$YEAR)),multiple =TRUE)
   })
   
   output$monthYearStat <- renderUI({
-    selectizeInput("monthYearStat", label = "Select monthly statistic(s) to graph:",choices = as.list(unique(allmonthData()[allmonthData()$Parameter == input$monthParam,]$Sum_stat)),multiple =TRUE)
+    selectizeInput("monthYearStat", label = "Select monthly statistic(s):",choices = as.list(unique(allmonthData()[allmonthData()$Parameter == input$monthParam,]$Sum_stat)),multiple =TRUE)
   })
   
+  monthlyStatsList <- reactive({
+    c("Mean"="Mean","Maximum"="Maximum","Minimum"="Minimum","Median"="Median","75th Percentile"="Percentile75","25th Percentile"="Percentile25", "95th Percentile"="Percentile95", "5th Percentile"="Percentile5")
+  })
+
   output$monthStat <- renderUI({
-    selectizeInput("monthStat", label = "Select monthly statistic(s) to graph:",choices = as.list(unique(monthData()[monthData()$Parameter == input$monthParam,]$Stat)),multiple =TRUE,
-                   selected = c("Mean","Median"))
+    selectizeInput("monthStat", label = "Select monthly statistic(s):",choices = monthlyStatsList(),multiple =TRUE,selected = c("Mean","Median"))
   })
   
   output$monthPlot.title <- renderText({
@@ -585,39 +614,44 @@ server <- function(input, output, session) {
   })
   
   monthlyPlot.y <- reactive({
-    if (input$monthlog) {
-      list(title=ifelse(input$monthParam== "FLOW","Discharge (cms)","Water Level (m)"),
-           type= "log")
-    } else {
-      list(title=ifelse(input$monthParam== "FLOW","Discharge (cms)","Water Level (m)"))
-    }
+    if (input$monthlog) {list(title=ifelse(input$monthParam== "FLOW","Discharge (cms)","Water Level (m)"),type= "log")}
+    else {               list(title=ifelse(input$monthParam== "FLOW","Discharge (cms)","Water Level (m)"))}
   })
   
   output$monthPlot <- renderPlotly({
+    
+    plot.data <- monthData() %>% spread(Stat,Value) %>% filter(Parameter==input$monthParam)
     
     plot <- plot_ly() %>% 
       layout(xaxis=list(title="Month",tickvals = seq(1:12),ticktext = c("Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Noc","Dec")),
              yaxis=monthlyPlot.y())
     
     # Add ribbons if checked
-    if (input$monthMaxMin){
-      plot <- plot %>%  add_ribbons(data=monthData() %>% spread(Stat,Value) %>% filter(Parameter==input$monthParam),x= ~Month,ymin= ~Minimum, ymax= ~Maximum,name="Max-Min Range",color=I("lightblue2"))
-    }
-    if (input$monthNormal){
-      plot <- plot %>%  add_ribbons(data=monthData() %>% spread(Stat,Value) %>% filter(Parameter==input$monthParam),x= ~Month,ymin= ~LowerQuartile, ymax= ~UpperQuartile,name="Upper-Lower Quartile Range",color=I("lightblue4"))
-    }
-    
-    # Add monthly summary statistics
-    plot <- plot %>% add_trace(data=monthData() %>% filter(Parameter==input$monthParam & Stat %in% input$monthStat),x= ~Month,y= ~Value, color= ~Stat,mode = 'lines+markers')
+    if (input$monthMaxMin){plot <- plot %>%  add_ribbons(data=plot.data,x= ~Month,ymin= ~Minimum, ymax= ~Maximum,name="Max-Min Range",color=I("lightblue2"))}
+    if (input$month90){plot <- plot %>%  add_ribbons(data=plot.data,x= ~Month,ymin= ~Percentile5, ymax= ~Percentile95,name="90% of Flows",color=I("lightblue4"))}
+    if (input$month50){plot <- plot %>%  add_ribbons(data=plot.data,x= ~Month,ymin= ~Percentile25, ymax= ~Percentile75,name="50% of Flows",color=I("lightblue4"))}
+    # Add lines if selected
+    if ("Maximum" %in% input$monthStat){plot <- plot %>%  add_trace(data=plot.data,x= ~Month,y=~Maximum,name="Maximum",color=I("red"),mode = 'lines+markers')}
+    if ("Percentile95" %in% input$monthStat){plot <- plot %>%  add_trace(data=plot.data,x= ~Month,y=~Percentile95,name="95th Percentile",color=I("yellow"),mode = 'lines+markers')}
+    if ("Percentile75" %in% input$monthStat){plot <- plot %>%  add_trace(data=plot.data,x= ~Month,y=~Percentile75,name="75th Percentile",color=I("orange"),mode = 'lines+markers')}
+    if ("Mean" %in% input$monthStat){plot <- plot %>%  add_trace(data=plot.data,x= ~Month,y=~Mean,name="Mean",color=I("green"),mode = 'lines+markers')}
+    if ("Median" %in% input$monthStat){plot <- plot %>%  add_trace(data=plot.data,x= ~Month,y=~Median,name="Median",color=I("blue"),mode = 'lines+markers')}
+    if ("Percentile25" %in% input$monthStat){plot <- plot %>%  add_trace(data=plot.data,x= ~Month,y=~Percentile25,name="25th Percentile",color=I("brown"),mode = 'lines+markers')}
+    if ("Percentile5" %in% input$monthStat){plot <- plot %>%  add_trace(data=plot.data,x= ~Month,y=~Percentile5,name="5th Percentile",color=I("black"),mode = 'lines+markers')}
+    if ("Minimum" %in% input$monthStat){plot <- plot %>%  add_trace(data=plot.data,x= ~Month,y=~Minimum,name="Minimum",color=I("purple"),mode = 'lines+markers')}
+
     
     # Add data from specific years and specific stats    
     plot <- plot %>% add_trace(data=allmonthData() %>% filter(Parameter==input$monthParam & Sum_stat %in% input$monthYearStat & YEAR %in% input$monthYear),x= ~MONTH,y= ~Value, color=~paste0(YEAR," ",Sum_stat),mode = 'lines+markers')#name= ~paste0(input$monthYearStat),
     
     plot
     
+
+
+    
   })
   
-
+  
   
   #Download plot/data buttons
   output$download.monthData <- downloadHandler(
@@ -648,22 +682,23 @@ server <- function(input, output, session) {
                 Maximum=max(Value, na.rm=TRUE),
                 Minimum=min(Value, na.rm=TRUE),
                 Median=median(Value, na.rm=TRUE),
-                UpperQuartile=quantile(Value,.75, na.rm=TRUE),
-                LowerQuartile=quantile(Value,.25,na.rm=TRUE)) %>% 
-      mutate(Day=as.Date(Day,origin = "1899-12-31"))
-    
-    
+                Percentile75=quantile(Value,.75, na.rm=TRUE),
+                Percentile25=quantile(Value,.25,na.rm=TRUE),
+                Percentile95=quantile(Value,.95,na.rm=TRUE),
+                Percentile5=quantile(Value,.05,na.rm=TRUE))%>% 
+      mutate(Day=as.Date(Day,origin = "1899-12-31")) %>% 
+      gather(Stat,Value,3:10)
     dailysummary
   })
   
   daily.yearslist <- reactive({
-   data <- dailyData() %>% mutate(Year=as.factor(format(Date,'%Y'))) %>% 
-        group_by(Parameter,Year) %>% summarise(n=sum(is.na(Value))) %>% 
-        filter(n<365)
+    data <- dailyData() %>% mutate(Year=as.factor(format(Date,'%Y'))) %>% 
+      group_by(Parameter,Year) %>% summarise(n=sum(is.na(Value))) %>% 
+      filter(n<365)
   }) 
   
   output$dailyYear <- renderUI({
-    selectizeInput("dailyYear", label = "Year:",choices = as.list(unique(daily.yearslist()[daily.yearslist()$Parameter == input$dailyParam,]$Year)),multiple =TRUE)
+    selectizeInput("dailyYear", label = "Select year(s) to display:",choices = as.list(unique(daily.yearslist()[daily.yearslist()$Parameter == input$dailyParam,]$Year)),multiple =TRUE)
   })
   
   dailyYears <- reactive({
@@ -679,9 +714,17 @@ server <- function(input, output, session) {
   
   
   output$dailyParam <- renderUI({
-    selectInput("dailyParam", label = "Parameter:",choices = as.list(unique(dailySummaryData()$Parameter)))
+    selectInput("dailyParam", label = "Display parameter:",choices = as.list(unique(dailySummaryData()$Parameter)))
   })
   
+  dailyStatsList <- reactive({
+    c("Mean"="Mean","Maximum"="Maximum","Minimum"="Minimum","Median"="Median","75th Percentile"="Percentile75", "25th Percentile"="Percentile25", "95th Percentile"="Percentile95", "5th Percentile"="Percentile5")
+  })
+  
+  output$dailyStat <- renderUI({
+    selectizeInput("dailyStat", label = "Select daily statistic(s):",choices = dailyStatsList(),multiple =TRUE,
+                   selected = c("Mean","Median"))
+  })
   
   
   output$dailyPlot.title <- renderText({
@@ -689,38 +732,42 @@ server <- function(input, output, session) {
   })
   
   dailyPlot.y <- reactive({
-    if (input$dailylog) {
-      list(title=ifelse(input$dailyParam== "FLOW","Discharge (cms)","Water Level (m)"),
-           type= "log")
-    } else {
-      list(title=ifelse(input$dailyParam== "FLOW","Discharge (cms)","Water Level (m)"))
-    }
+    if (input$dailylog) {list(title=ifelse(input$dailyParam== "FLOW","Discharge (cms)","Water Level (m)"),type= "log")} 
+    else {               list(title=ifelse(input$dailyParam== "FLOW","Discharge (cms)","Water Level (m)"))}
   })
   
   output$dailyPlot <- renderPlotly({
     
+    plot.data <- dailySummaryData() %>% spread(Stat,Value)%>% filter(Parameter==input$dailyParam)
+    
     plot <- plot_ly() %>% 
-      add_ribbons(data=dailySummaryData() %>% filter(Parameter==input$dailyParam),x= ~Day,ymin= ~Minimum, ymax= ~Maximum,name="Max-Min Range") %>% 
-      add_ribbons(data=dailySummaryData() %>% filter(Parameter==input$dailyParam),x= ~Day,ymin= ~LowerQuartile, ymax= ~UpperQuartile,name="25-27th Percentile Range") %>% 
-      # add_lines(data=dailySummaryData() %>% filter(Parameter==input$dailyParam),x= ~Day,y= ~Maximum, name="Maximum") %>% 
-      #add_lines(data=dailySummaryData() %>% filter(Parameter==input$dailyParam),x= ~Day,y= ~UpperQuartile, name="Upper Quartile") %>% 
-      add_lines(data=dailySummaryData() %>% filter(Parameter==input$dailyParam),x= ~Day,y= ~Mean, name="Mean") %>% 
-      add_lines(data=dailySummaryData() %>% filter(Parameter==input$dailyParam),x= ~Day,y= ~Median, name="Median") %>% 
-      #add_lines(data=dailySummaryData() %>% filter(Parameter==input$dailyParam),x= ~Day,y= ~LowerQuartile, name="Lower Quartile") %>% 
-      #add_lines(data=dailySummaryData() %>% filter(Parameter==input$dailyParam),x= ~Day,y= ~Minimum, name="Minimum") %>% 
       layout(xaxis=list(title="Day of Year",tickformat= "%b-%d"),
              yaxis=dailyPlot.y())
     
-    if(length(input$dailyYear)>0) {
-      plot %>% add_lines(data=dailyYears() %>% filter(Parameter==input$dailyParam),x= ~Day,y= ~Value, color=~Year)
-    } else {
-      plot
-    }
+    
+    # Add ribbons if checked
+    if (input$dailyMaxMin){plot <- plot %>%  add_ribbons(data=plot.data,x= ~Day,ymin= ~Minimum, ymax= ~Maximum,name="Max-Min Range",color=I("lightblue2"))}
+    if (input$daily90){plot <- plot %>%  add_ribbons(data=plot.data,x= ~Day,ymin= ~Percentile95, ymax= ~Percentile5,name="90% of Flows",color=I("lightblue4"))}
+    if (input$daily50){plot <- plot %>%  add_ribbons(data=plot.data,x= ~Day,ymin= ~Percentile25, ymax= ~Percentile75,name="50% of Flows",color=I("lightblue4"))}
+    # Add lines if selected
+    if ("Maximum" %in% input$dailyStat){plot <- plot %>%  add_lines(data=plot.data,x= ~Day,y=~Maximum,name="Maximum",color=I("red"))}
+    if ("Percentile95" %in% input$dailyStat){plot <- plot %>%  add_lines(data=plot.data,x= ~Day,y=~Percentile95,name="95th Percentile",color=I("yellow"))}
+    if ("Percentile75" %in% input$dailyStat){plot <- plot %>%  add_lines(data=plot.data,x= ~Day,y=~Percentile75,name="75th Percentile",color=I("orange"))}
+    if ("Mean" %in% input$dailyStat){plot <- plot %>%  add_lines(data=plot.data,x= ~Day,y=~Mean,name="Mean",color=I("green"))}
+    if ("Median" %in% input$dailyStat){plot <- plot %>%  add_lines(data=plot.data,x= ~Day,y=~Median,name="Median",color=I("blue"))}
+    if ("Percentile25" %in% input$dailyStat){plot <- plot %>%  add_lines(data=plot.data,x= ~Day,y=~Percentile25,name="25th Percentile",color=I("brown"))}
+    if ("Percentile5" %in% input$dailyStat){plot <- plot %>%  add_lines(data=plot.data,x= ~Day,y=~Percentile5,name="5th Percentile",color=I("black"))}
+    if ("Minimum" %in% input$dailyStat){plot <- plot %>%  add_lines(data=plot.data,x= ~Day,y=~Minimum,name="Minimum",color=I("purple"))}
+    
+    # Add data from specific years
+    plot <- plot %>% add_lines(data=dailyYears() %>% filter(Parameter==input$dailyParam),x= ~Day,y= ~Value, color=~Year)
+    
+    plot
     
   })
   
   
-  #Download plot/data buttons
+  #Download data buttons
   output$download.dailySummaryData <- downloadHandler(
     filename = function() {paste0(metaData()[1,2]," - daily summary.csv")},
     content = function(file) {
@@ -742,31 +789,49 @@ server <- function(input, output, session) {
   ### Real-Time Data ###
   ###################################################################################
   
+  output$rtExists <- reactive({
+    if(is.null(realtime.HYDAT <- download_realtime_dd(STATION_NUMBER = input$station))){
+      exist <- "No"
+    } else {
+      exist <- "Yes"
+    }
+    exist
+  })
   
-  # Extract historical data from HYDAT and determine the start and end dates for clipping
-  realtimeDates <- reactive({
+  # Place text in real-time sidepanel section if no real-time data
+  output$noRT <- renderText({
     
-    realtime.HYDAT <- download_realtime_dd(STATION_NUMBER = input$station)
+    if(metaData()[9,2]=="No") {
+      paste("*** No real-time data available for this station.")
+    } else if(metaData()[9,2]=="Yes" & is.null(realtime.HYDAT <- download_realtime_dd(STATION_NUMBER = input$station))) {
+      paste("*** No real-time data available at this time.")
+    }
     
-    real.timeDates <- as.data.frame(realtime.HYDAT[,3])
-    colnames(real.timeDates) <- "DateTime"
-    real.timeDates$Date <- as.Date(real.timeDates$DateTime,"%Y-%m-%d")
     
-    real.timeDates <- real.timeDates %>% 
-      summarize(minDate=min(Date),
-                maxDate=max(Date))
   })
   
   # Extract real-time data from webslink and clip to dates
   realtimeData <- reactive({ 
-    realtime.HYDAT <- download_realtime_dd(STATION_NUMBER = input$station)
-    real.time <- realtime.HYDAT[,c(3:5)] %>% spread(Parameter,Value)
-    colnames(real.time) <- c("DateTime","Discharge","Stage")
-    real.time$Date <- as.Date(real.time$DateTime,"%Y-%m-%d")
-    real.time <- as.data.frame(real.time[,c(4,1:3)])
-    real.time
+    realtime.HYDAT <- download_realtime_dd(STATION_NUMBER = input$station)#input$station
+    
+    # Remove FLOW OR LEVEL if there either are all NA
+    realtime.FLOW <- realtime.HYDAT %>% filter(Parameter=="FLOW")
+    if ((realtime.FLOW %>% summarise(n=sum(!is.na(Value))))==0){
+      realtime.FLOW <- realtime.FLOW[0,]
+    }
+    realtime.LEVEL <- realtime.HYDAT %>% filter(Parameter=="LEVEL")
+    if ((realtime.LEVEL %>% summarise(n=sum(!is.na(Value))))==0){
+      realtime.LEVEL <- realtime.LEVEL[0,]
+    }
+    
+    realtime.data <- rbind(realtime.FLOW,realtime.LEVEL)
+    realtime.data
+    
   })
   
+  output$rtParam <- renderUI({
+    selectizeInput("rtParam","Parameters to plot:",choices=as.list(unique(realtimeData()$Parameter)),selected=as.list(unique(realtimeData()$Parameter)), multiple =TRUE)
+  })
   
   
   rtplot.y <- reactive({
@@ -787,14 +852,33 @@ server <- function(input, output, session) {
     paste0("Real-time Data - ",metaData()[2,2]," (",metaData()[1,2],")")
   })
   
-  
   output$rtplot <- renderPlotly({
-    plot_ly() %>% 
-      add_lines(data=realtimeData(),x= ~DateTime,y= ~Discharge, name="Discharge") %>% 
-      add_lines(data=realtimeData(),x= ~DateTime,y= ~Stage, name="Stage", yaxis = "y2") %>% 
-      layout(xaxis=list(title="Date"),
-             yaxis=rtplot.y(),
-             yaxis2 = list(overlaying = "y",side = "right",title = "Water Level (m)"))
+    
+    if (length(input$rtParam)==2) {
+      plot <- plot_ly() %>% 
+        add_lines(data=realtimeData() %>% filter(Parameter=="FLOW"),x= ~Date,y= ~Value, name="Discharge") %>% 
+        add_lines(data=realtimeData() %>% filter(Parameter=="LEVEL"),x= ~Date,y= ~Value, name="Water Level", yaxis = "y2") %>% 
+        layout(xaxis=list(title="Date"),
+               yaxis=rtplot.y(),
+               yaxis2 = list(overlaying = "y",side = "right",title = "Water Level (m)"))
+      
+    } else if (length(input$rtParam)==1 & input$rtParam=="FLOW") {
+      plot <- plot_ly() %>% 
+        add_lines(data=realtimeData() %>% filter(Parameter=="FLOW"),x= ~Date,y= ~Value, name="Discharge") %>% 
+        layout(xaxis=list(title="Date"),
+               yaxis=rtplot.y(),
+               showlegend = TRUE)
+    } else if (length(input$rtParam)==1 & input$rtParam=="LEVEL") {
+      plot <- plot_ly() %>% 
+        add_lines(data=realtimeData() %>% filter(Parameter=="LEVEL"),x= ~Date,y= ~Value, name="Water Level") %>% 
+        layout(xaxis=list(title="Date"),
+               yaxis=list(title = "Water Level (m)"),
+               showlegend = TRUE)
+    } 
+    
+    
+    
+    
   })
   
   # Render ggplot for output (if not real time, dont plot)
@@ -802,8 +886,12 @@ server <- function(input, output, session) {
   #  if(metaData()[9,2]=="Yes") realtimePlot()
   #})
   
+  
+  
+  
+  ###############################################################################################
   ### Leaflet map ###
-  ###################
+  ###############################################################################################
   
   output$map <- renderLeaflet({
     leaflet(stations) %>% addTiles() %>%
@@ -850,12 +938,6 @@ server <- function(input, output, session) {
   
   
   
-  
-  # Place text in real-time sidepanel section if no real-time data
-  output$noRT <- renderText({
-    {if(metaData()[9,2]=="No") paste("*** No real-time data available for this station. No data or plot available to view or download. ***")}
-  })
-  
   allstationsTable <- reactive({
     
     stn.meta.HYDAT <- stations %>% filter(STATION_NUMBER==stations.list)#input$station)
@@ -879,6 +961,18 @@ server <- function(input, output, session) {
                    colReorder = TRUE,
                    buttons= list(list(extend='colvis',columns=c(1:10))))
   ) 
+  
+  proxy = DT::dataTableProxy('allstationsTable')
+  observeEvent(input$station, {
+    proxy %>% DT::selectRows(which(stations.list == input$station))
+  })
+  
+  
+  # Deal with later
+  #observeEvent(input$downloadHYDAT, {
+  #  download_hydat(dl_hydat_here = getwd())
+  #})
+  
   
   ########### download table of stations
   downloadStationsList <- reactive({
