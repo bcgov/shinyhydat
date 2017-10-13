@@ -31,7 +31,7 @@ stations <- STATIONS(PROV_TERR_STATE_LOC = "BC") %>%  #c("AB","BC","SK","MB","ON
   left_join(REGIONAL_OFFICE_LIST(), by = c("REGIONAL_OFFICE_ID" = "REGIONAL_OFFICE_ID")) %>% rename("REGIONAL_OFFICE"=REGIONAL_OFFICE_NAME_EN) %>% 
   left_join(STN_REGULATION(), by="STATION_NUMBER") %>% 
   select(STATION_NUMBER,STATION_NAME,PROV_TERR_STATE_LOC,HYD_STATUS,LATITUDE,LONGITUDE,DRAINAGE_AREA_GROSS,RHBN,
-           REAL_TIME,REGULATED,CONTRIBUTOR,OPERATOR,REGIONAL_OFFICE,DATUM)
+         REAL_TIME,REGULATED,CONTRIBUTOR,OPERATOR,REGIONAL_OFFICE,DATUM)
 stations.list <- as.list(stations$STATION_NUMBER)
 
 #######################################################################################
@@ -56,7 +56,7 @@ ui <- dashboardPage(
       textOutput("onlineHYDAT"),br(),br(),
       textOutput("test")#,
       #actionButton("downloadHYDAT","Download HYDAT")  #NEED TO MOVE QUESTION FROM CONSOLE TO WINDOW
-    )
+      )
     
     
   ),
@@ -66,10 +66,10 @@ ui <- dashboardPage(
              tabPanel("Station Listings",
                       fluidRow(column(width = 8,
                                       helpText("Search for a station by entering all or part of a station name, number, or 
-                                                other categories. To view station information and hydrometric data, click 
-                                                on the row and view the other tabs. To search by map, go to the 'Stations 
-                                                Map' tab and click on the marker of your desired station. Each map or table 
-                                                selection will replace the previous selection."),
+                                               other categories. To view station information and hydrometric data, click 
+                                               on the row and view the other tabs. To search by map, go to the 'Stations 
+                                               Map' tab and click on the marker of your desired station. Each map or table 
+                                               selection will replace the previous selection."),
                                       helpText("The table below (filtered or not) can be downloaded as a .csv file with the 
                                                download button the right. To display stations listed below (filtered or not) 
                                                on the 'Stations Map' tab, click the button to the right. To clear any 
@@ -81,7 +81,7 @@ ui <- dashboardPage(
                       br(),
                       DT::dataTableOutput("allstationsTable")
                       
-             ),
+                                      ),
              tabPanel("Stations Map",
                       br(),
                       fluidPage(column(width=8,
@@ -300,10 +300,10 @@ ui <- dashboardPage(
                                                                    label = "Log scale on 'Discharge' axis", 
                                                                    value= FALSE))))))),
              tabPanel("Station Comparison")
+             )
       )
-    )
-  )
 )
+      )
 
 #######################################################################################
 # Set up the server (where all the magic happens)
@@ -365,7 +365,7 @@ server <- function(input, output, session) {
   
   # Create reactive values$station to be selected by the selectbox, data.table and map click
   values <- reactiveValues()
-  values$station <- as.data.frame(stations)[1,1]
+  values$station <- "08HB048"#as.data.frame(stations)[1,1]
   
   output$test <- renderText({values$station})
   
@@ -624,7 +624,7 @@ server <- function(input, output, session) {
       select(Date,Year,Month,Parameter,Value,Symbol)
     
     check <- STN_DATA_RANGE(STATION_NUMBER=values$station) %>% filter(DATA_TYPE=="Q"|DATA_TYPE=="H")
-
+    
     if ("Q" %in% check$DATA_TYPE & "H" %in% check$DATA_TYPE) { # both Q and H
       data.flow <- data %>% filter(Parameter=="FLOW") %>% 
         mutate("Flow (cms)"=Value,"Flow Symbol"=Symbol)%>%
@@ -670,8 +670,9 @@ server <- function(input, output, session) {
   annualData <- reactive({
     
     annual <- ANNUAL_STATISTICS(STATION_NUMBER=values$station) %>% 
-
-      filter(Parameter=="Flow" | Parameter == "Water Level")
+      filter(Parameter=="Flow" | Parameter == "Water Level") %>% 
+      mutate(Parameter=replace(Parameter, Parameter=="Flow", "FLOW"),
+             Parameter=replace(Parameter, Parameter=="Water Level", "LEVEL"))
     
     # Fill in missing years with NA
     annual.data <- annual[0,]
@@ -694,7 +695,7 @@ server <- function(input, output, session) {
     annual.data 
   })
   
-
+  
   # Extract monthly instanteous peaks of discharge and water level data from HYDAT
   annInstData <- reactive({
     # Extract and format columns for displaying information
@@ -729,20 +730,22 @@ server <- function(input, output, session) {
   # Select the annual instantaneous peaks to display
   output$annInstStat <- renderUI({
     selectizeInput("annInstStat", 
-                   label = "Display annual instantaneous extreme values:",
-                   choices = as.list(unique(annInstData()[annInstData()$Parameter == input$annualParam,]$PEAK_CODE)),
+                   label = "Display annual instantaneous peak values:",
+                   choices = c("Minimum"="MIN","Maximum"="MAX"),#as.list(unique(annInstData()[annInstData()$Parameter == input$annualParam,]$PEAK_CODE)),
                    multiple =TRUE)
   })
   
+  
+  
   # Create annual plot title
   output$annualPlot.title <- renderText({
-    paste0("Annual ",input$annualParam," Statistics - ",metaData()[2,2]," (",metaData()[1,2],")")
+    paste0("Annual ",ifelse(input$annualParam=="FlOW",paste("FLow"),paste("Water Level"))," Statistics - ",metaData()[2,2]," (",metaData()[1,2],")")
   })
   
   # Plot the primary y-axis on log-scale if checked
   annualPlot.y <- reactive({
-    if (input$annuallog) {list(title=ifelse(input$annualParam== "Flow","Discharge (cms)","Water Level (m)"),type= "log")}
-    else {                list(title=ifelse(input$annualParam== "Flow","Discharge (cms)","Water Level (m)"))}
+    if (input$annuallog) {list(title=ifelse(input$annualParam== "FLOW","Discharge (cms)","Water Level (m)"),type= "log")}
+    else {                list(title=ifelse(input$annualParam== "FLOW","Discharge (cms)","Water Level (m)"))}
   })
   
   # Create the annual plot
@@ -758,26 +761,28 @@ server <- function(input, output, session) {
     if ("MAX" %in% input$annualStat){
       plot <- plot %>%  add_trace(data=plot.data %>% filter(Sum_stat=="MAX"),
                                   x= ~Year,y=~Value,name="Daily Maximum",
-                                  color=I("red"),mode = 'lines+markers',text=~paste("On",Date," ",Symbol))}
+                                  mode = 'lines+markers',text=~paste("On",Date," ",Symbol),
+                                  line=list(color='rgba(1,102,94, 1)'))}
     if ("MEAN" %in% input$annualStat){
       plot <- plot %>%  add_trace(data=plot.data %>% filter(Sum_stat=="MEAN"),
                                   x= ~Year,y=~Value,name="Daily Mean",
-                                  color=I("blue"),mode = 'lines+markers')}
+                                  mode = 'lines+markers',
+                                  line=list(color='rgba(61,151,53, 1)'))}
     if ("MIN" %in% input$annualStat){
       plot <- plot %>%  add_trace(data=plot.data %>% filter(Sum_stat=="MIN"),
                                   x= ~Year,y=~Value,name="Daily Minimum",
-                                  color=I("green"),mode = 'lines+markers',text=~paste("On",Date," ",Symbol))}
+                                  mode = 'lines+markers',text=~paste("On",Date," ",Symbol),
+                                  line=list(color='rgba(140,81,10, 1)'))}
     
     # Add instantaneous peaks if selected
     if ("MAX" %in% input$annInstStat){
-      plot <- plot %>% add_markers(data=annInstData() %>% filter(Parameter==input$annualParam & PEAK_CODE == "MAX"),
-                                   x= ~YEAR,y= ~Value, name="Instanteous Maximum",
-                                   marker=list(symbol=2,size=8), text=~paste0(DateTime," ",Symbol))} 
+      plot <- plot %>% add_trace(data=annInstData() %>% filter(Parameter==input$annualParam & PEAK_CODE == "MAX"),
+                                 x= ~YEAR,y= ~Value, name="Instanteous Maximum",mode = 'markers',
+                                 marker=list(symbol=2,size=8,color='rgba(10,69,140,1)'), text=~paste0(DateTime," ",Symbol))} 
     if ("MIN" %in% input$annInstStat){
-      plot <- plot %>% add_markers(data=annInstData() %>% filter(Parameter==input$annualParam & PEAK_CODE == "MIN"),
-                                   x= ~YEAR,y= ~Value, name="Instanteous Minimum",
-                                   marker=list(symbol=2,size=8), text=~paste0(DateTime," ",Symbol))}
-    
+      plot <- plot %>% add_trace(data=annInstData() %>% filter(Parameter==input$annualParam & PEAK_CODE == "MIN"),
+                                 x= ~YEAR,y= ~Value, name="Instanteous Minimum",mode = 'markers',
+                                 marker=list(symbol=2,size=8,color='rgba(140,16,10,1)'), text=~paste0(DateTime," ",Symbol))}
     plot
   })
   
@@ -949,45 +954,45 @@ server <- function(input, output, session) {
     
     # Add ribbons if checked
     if (input$monthMaxMin){
-      plot <- plot %>%  add_ribbons(data=plot.data,x= ~Month,ymin= ~Minimum, ymax= ~Maximum,name="Max-Min Range",
-                                    fillcolor="rgba(224,255,255,.7)",line=list(color='rgba(7, 164, 181, 0.05)'))}
+      plot <- plot %>%  add_ribbons(data=plot.data,x= ~Month,ymin= ~Minimum, ymax= ~Maximum,name="Max-Min Range",color=I("lightblue1"))}
+    #fillcolor="rgba(224,255,255,.7)",line=list(color='rgba(7, 164, 181, 0.05)'))}
     if (input$month90){
-      plot <- plot %>%  add_ribbons(data=plot.data,x= ~Month,ymin= ~Percentile5, ymax= ~Percentile95,name="90% of Flows",
-                                    fillcolor="rgba(201,229,229,.7)",line=list(color='rgba(7, 164, 181, 0.05)'))}
+      plot <- plot %>%  add_ribbons(data=plot.data,x= ~Month,ymin= ~Percentile5, ymax= ~Percentile95,name="90% of Flows",color=I("lightblue2"))}
+    # fillcolor="rgba(201,229,229,.7)",line=list(color='rgba(7, 164, 181, 0.05)'))}
     if (input$month50){
-      plot <- plot %>%  add_ribbons(data=plot.data,x= ~Month,ymin= ~Percentile25, ymax= ~Percentile75,name="50% of Flows",
-                                    fillcolor="rgba(179,204,204,.7)",line=list(color='rgba(7, 164, 181, 0.05)'))}
+      plot <- plot %>%  add_ribbons(data=plot.data,x= ~Month,ymin= ~Percentile25, ymax= ~Percentile75,name="50% of Flows",color=I("lightblue3"))}
+    #  fillcolor="rgba(179,204,204,.7)",line=list(color='rgba(7, 164, 181, 0.05)'))}
     # Add lines if selected
     if ("Maximum" %in% input$monthStat){
       plot <- plot %>%  add_trace(data=plot.data,x= ~Month,y=~Maximum,name="Maximum",
-                                  color=I("lightblue2"),mode = 'lines+markers',line=list(dash = 'dot'))}
+                                  mode = 'lines+markers',line=list(dash = 'dot',color='rgba(1,102,94, 1)'))}
     if ("Percentile95" %in% input$monthStat){
       plot <- plot %>%  add_trace(data=plot.data,x= ~Month,y=~Percentile95,name="95th Percentile",
-                                  color=I("lightblue3"),mode = 'lines+markers',line=list(dash = 'dot'))}
+                                  mode = 'lines+markers',line=list(dash = 'dot',color='rgba(53,151,143, 1)'))}
     if ("Percentile75" %in% input$monthStat){
       plot <- plot %>%  add_trace(data=plot.data,x= ~Month,y=~Percentile75,name="75th Percentile",
-                                  color=I("lightblue4"),mode = 'lines+markers',line=list(dash = 'dot'))}
+                                  mode = 'lines+markers',line=list(dash = 'dot',color='rgba(128,205,193, 1)'))}
     if ("Mean" %in% input$monthStat){
       plot <- plot %>%  add_trace(data=plot.data,x= ~Month,y=~Mean,name="Mean",
-                                  color=I("green"),mode = 'lines+markers')}
+                                  mode = 'lines+markers',line=list(color='rgba(61,151,53, 1)'))}
     if ("Median" %in% input$monthStat){
       plot <- plot %>%  add_trace(data=plot.data,x= ~Month,y=~Median,name="Median",
-                                  color=I("blue"),mode = 'lines+markers')}
+                                  mode = 'lines+markers',line=list(color='rgba(143,53,151, 1)'))}
     if ("Percentile25" %in% input$monthStat){
       plot <- plot %>%  add_trace(data=plot.data,x= ~Month,y=~Percentile25,name="25th Percentile",
-                                  color=I("brown"),mode = 'lines+markers',line=list(dash = 'dot'))}
+                                  mode = 'lines+markers',line=list(dash = 'dot',color='rgba(223,194,125, 1)'))}
     if ("Percentile5" %in% input$monthStat){
       plot <- plot %>%  add_trace(data=plot.data,x= ~Month,y=~Percentile5,name="5th Percentile",
-                                  color=I("black"),mode = 'lines+markers',line=list(dash = 'dot'))}
+                                  mode = 'lines+markers',line=list(dash = 'dot',color='rgba(191,129,45, 1)'))}
     if ("Minimum" %in% input$monthStat){
       plot <- plot %>%  add_trace(data=plot.data,x= ~Month,y=~Minimum,name="Minimum",
-                                  color=I("purple"),mode = 'lines+markers',line=list(dash = 'dot'))}
+                                  mode = 'lines+markers',line=list(dash = 'dot',color='rgba(140,81,10, 1)'))}
     
     
     # Add data from specific years and specific stats    
     plot <- plot %>% add_trace(data=allmonthData() %>% 
                                  filter(Parameter==input$monthParam & Sum_stat %in% input$monthYearStat & Year %in% input$monthYear),
-                               x= ~Month,y= ~Value, color=~paste0(Year," ",Sum_stat),mode = 'lines+markers')
+                               x= ~Month,y= ~Value, color=~paste0(Year," ",Sum_stat),mode = 'lines+markers',line=list(width=3))
     
     plot
   })
@@ -1074,7 +1079,7 @@ server <- function(input, output, session) {
     
     daily.Year <- daily.data %>% 
       filter(Year %in% input$dailyYear & Day<366) %>% 
-      mutate(Day=as.Date(Day,origin = "1899-12-31"))
+      mutate(Date=as.Date(Day,origin = "1899-12-31"))
     daily.Year
   })
   
@@ -1108,7 +1113,7 @@ server <- function(input, output, session) {
     
     #create the plot
     plot <- plot_ly() %>% 
-      layout(xaxis=list(title="Day of Year",tickformat= "%b-%d"),
+      layout(xaxis=list(title="Day of Year"),#,tickformat= "%b-%d"
              yaxis=dailyPlot.y(),
              showlegend = TRUE)
     
@@ -1116,30 +1121,31 @@ server <- function(input, output, session) {
     # Add ribbons if checked
     if (input$dailyMaxMin){
       plot <- plot %>%  add_ribbons(data=plot.data,x= ~Date,ymin= ~Minimum, ymax= ~Maximum,name="Max-Min Range",
-                                    color=I("lightblue2"))}
+                                    color=I("lightblue1"))}
     if (input$daily90){
       plot <- plot %>%  add_ribbons(data=plot.data,x= ~Date,ymin= ~Percentile95, ymax= ~Percentile5,name="90% of Flows",
-                                    color=I("lightblue4"))}
+                                    color=I("lightblue2"))}
     if (input$daily50){
       plot <- plot %>%  add_ribbons(data=plot.data,x= ~Date,ymin= ~Percentile25, ymax= ~Percentile75,name="50% of Flows",
-                                    color=I("lightblue4"))}
+                                    color=I("lightblue3"))}
+    
     # Add lines if selected
     if ("Maximum" %in% input$dailyStat){
-      plot <- plot %>%  add_lines(data=plot.data,x= ~Date,y=~Maximum,name="Maximum",color=I("red"))}
+      plot <- plot %>%  add_lines(data=plot.data,x= ~Date,y=~Maximum,name="Maximum",line=list(color='rgba(1,102,94, 1)',width=2))}
     if ("Percentile95" %in% input$dailyStat){
-      plot <- plot %>%  add_lines(data=plot.data,x= ~Date,y=~Percentile95,name="95th Percentile",color=I("yellow"))}
+      plot <- plot %>%  add_lines(data=plot.data,x= ~Date,y=~Percentile95,name="95th Percentile",line=list(color='rgba(53,151,143, 1)',width=2))}
     if ("Percentile75" %in% input$dailyStat){
-      plot <- plot %>%  add_lines(data=plot.data,x= ~Date,y=~Percentile75,name="75th Percentile",color=I("orange"))}
+      plot <- plot %>%  add_lines(data=plot.data,x= ~Date,y=~Percentile75,name="75th Percentile",line=list(color='rgba(128,205,193, 1)',width=2))}
     if ("Mean" %in% input$dailyStat){
-      plot <- plot %>%  add_lines(data=plot.data,x= ~Date,y=~Mean,name="Mean",color=I("green"))}
+      plot <- plot %>%  add_lines(data=plot.data,x= ~Date,y=~Mean,name="Mean",line=list(color='rgba(61,151,53, 1)',width=2))}
     if ("Median" %in% input$dailyStat){
-      plot <- plot %>%  add_lines(data=plot.data,x= ~Date,y=~Median,name="Median",color=I("blue"))}
+      plot <- plot %>%  add_lines(data=plot.data,x= ~Date,y=~Median,name="Median",line=list(color='rgba(143,53,151, 1)',width=2))}
     if ("Percentile25" %in% input$dailyStat){
-      plot <- plot %>%  add_lines(data=plot.data,x= ~Date,y=~Percentile25,name="25th Percentile",color=I("brown"))}
+      plot <- plot %>%  add_lines(data=plot.data,x= ~Date,y=~Percentile25,name="25th Percentile",line=list(color='rgba(223,194,125, 1)',width=2))}
     if ("Percentile5" %in% input$dailyStat){
-      plot <- plot %>%  add_lines(data=plot.data,x= ~Date,y=~Percentile5,name="5th Percentile",color=I("black"))}
+      plot <- plot %>%  add_lines(data=plot.data,x= ~Date,y=~Percentile5,name="5th Percentile",line=list(color='rgba(191,129,45, 1)',width=2))}
     if ("Minimum" %in% input$dailyStat){
-      plot <- plot %>%  add_lines(data=plot.data,x= ~Date,y=~Minimum,name="Minimum",color=I("purple"))}
+      plot <- plot %>%  add_lines(data=plot.data,x= ~Date,y=~Minimum,name="Minimum",line=list(color='rgba(140,81,10, 1)',width=2))}
     
     # Add data from specific years
     plot <- plot %>% add_lines(data=dailyYears() %>% filter(Parameter==input$dailyParam),x= ~Date,y= ~Value, color=~Year)
@@ -1261,7 +1267,7 @@ server <- function(input, output, session) {
       write.csv(realtimeData(),file, row.names = FALSE, na="")
     })  
   
-
+  
   ######################################################################
   ### Under Development  ###
   #####################################################################
