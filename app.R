@@ -867,22 +867,22 @@ server <- function(input, output, session) {
   
   # Extract the HYDAT data for table and download button
   HYDATmonthData <- reactive({
-    check <- STN_DATA_RANGE(HYDAT.path, STATION_NUMBER=values$station) %>% filter(DATA_TYPE=="Q"|DATA_TYPE=="H")
+    check <- STN_DATA_RANGE(STATION_NUMBER=values$station) %>% filter(DATA_TYPE=="Q"|DATA_TYPE=="H")
     
     if ("Q" %in% check$DATA_TYPE & "H" %in% check$DATA_TYPE) { # both Q and H
-      monthly.flows.hydat <- MONTHLY_FLOWS(hydat_path = HYDAT.path, STATION_NUMBER=values$station) %>%
+      monthly.flows.hydat <- MONTHLY_FLOWS(STATION_NUMBER=values$station) %>%
         mutate(Parameter="FLOW")
-      monthly.levels.hydat <- MONTHLY_LEVELS(hydat_path = HYDAT.path, STATION_NUMBER=values$station) %>%
+      monthly.levels.hydat <- MONTHLY_LEVELS(STATION_NUMBER=values$station) %>%
         select(-PRECISION_CODE) %>% mutate(Parameter="LEVEL")
       monthly.data <- rbind(monthly.flows.hydat,monthly.levels.hydat) %>%
         select(Parameter,YEAR,MONTH,Sum_stat,Value,Date_occurred)
     } else if ("Q" %in% check$DATA_TYPE & !("H" %in% check$DATA_TYPE)) { # just Q
-      monthly.flows.hydat <- MONTHLY_FLOWS(hydat_path = HYDAT.path, STATION_NUMBER=values$station) %>%
+      monthly.flows.hydat <- MONTHLY_FLOWS(STATION_NUMBER=values$station) %>%
         mutate(Parameter="FLOW")
       monthly.data <- monthly.flows.hydat %>%
         select(Parameter,YEAR,MONTH,Sum_stat,Value,Date_occurred)
     } else if (!("Q" %in% check$DATA_TYPE) & "H" %in% check$DATA_TYPE) { # just H
-      monthly.levels.hydat <- MONTHLY_LEVELS(hydat_path = HYDAT.path, STATION_NUMBER=values$station) %>%
+      monthly.levels.hydat <- MONTHLY_LEVELS(STATION_NUMBER=values$station) %>%
         select(-PRECISION_CODE) %>% mutate(Parameter="LEVEL")
       monthly.data <- monthly.levels.hydat %>%
         select(Parameter,YEAR,MONTH,Sum_stat,Value,Date_occurred)
