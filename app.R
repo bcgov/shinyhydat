@@ -243,8 +243,6 @@ ui <- dashboardPage(
                                                                          uiOutput("monthYearStat"))))))
                                  ),
                                  tabPanel("Table",
-                                          h5("*** fix year and month stats names (Percentile25"),
-                                          h5("*** ADD if statements plot code to specify colours"),
                                           h5("*** FIX TABLE BELOW"),
                                           DT::dataTableOutput("monthTable")
                                  )
@@ -933,8 +931,8 @@ server <- function(input, output, session) {
   output$monthYearStat <- renderUI({
     selectizeInput("monthYearStat", 
                    label = "Select monthly statistic(s):",
-                   choices = c("Mean"="Mean","Maximum"="Maximum","Minimum"="Minimum","Median"="Median","75th Percentile"="Percentile75", 
-                               "25th Percentile"="Percentile25", "95th Percentile"="Percentile95", "5th Percentile"="Percentile5"),
+                   choices = c("Mean"="Mean","Maximum"="Maximum","Minimum"="Minimum","Median"="Median","75th Percentile"="75th Percentile", 
+                               "25th Percentile"="25th Percentile", "95th Percentile"="95th Percentile", "5th Percentile"="5th Percentile"),
                    multiple =TRUE)
   })
   
@@ -1000,7 +998,11 @@ server <- function(input, output, session) {
     
     
     # Add data from specific years and specific stats    
-    plot <- plot %>% add_trace(data=allmonthData() %>% 
+    year.data <- allmonthData() %>% mutate(Sum_stat=replace(Sum_stat, Sum_stat=="Percentile25", "25th Percentile"),
+                                           Sum_stat=replace(Sum_stat, Sum_stat=="Percentile75", "75th Percentile"),
+                                           Sum_stat=replace(Sum_stat, Sum_stat=="Percentile5", "5th Percentile"),
+                                           Sum_stat=replace(Sum_stat, Sum_stat=="Percentile95", "95th Percentile"))
+    plot <- plot %>% add_trace(data=year.data %>% 
                                  filter(Parameter==input$monthParam & Sum_stat %in% input$monthYearStat & Year %in% input$monthYear),
                                x= ~Month,y= ~Value, color=~paste0(Year," ",Sum_stat),mode = 'lines+markers',line=list(width=3))
     
