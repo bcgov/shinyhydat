@@ -12,7 +12,7 @@
 
 
 
-library(shiny) # 1.0.3 shiny
+library(shiny)
 library(shinydashboard)
 library(shinyWidgets)
 library(dplyr) ## >0.7.0 dplyr
@@ -34,6 +34,8 @@ stations <- STATIONS(PROV_TERR_STATE_LOC = "BC") %>%  #c("AB","BC","SK","MB","ON
   select(STATION_NUMBER,STATION_NAME,PROV_TERR_STATE_LOC,HYD_STATUS,LATITUDE,LONGITUDE,DRAINAGE_AREA_GROSS,RHBN,
          REAL_TIME,REGULATED,CONTRIBUTOR,OPERATOR,REGIONAL_OFFICE,DATUM)
 stations.list <- as.list(stations$STATION_NUMBER)
+
+
 
 #######################################################################################
 ### # Set up the user-interface
@@ -219,7 +221,9 @@ ui <- dashboardPage(
                                           fluidRow(box(width = 9,title = "Graph Options",status = "primary",
                                                        fluidRow(column(width=3,hr(),
                                                                        uiOutput("monthParam"),
-                                                                       selectInput("monthPlotType","Type of graph:",choices = c("Continuous","Box Plot"), selected = "Continuous"),
+                                                                       selectInput("monthPlotType","Type of graph:",
+                                                                                   choices = c("Continuous","Box Plot"),
+                                                                                   selected = "Continuous"),
                                                                        checkboxInput("monthlog", 
                                                                                      label = "Log scale on primary Y-axis", 
                                                                                      value= FALSE)),
@@ -245,7 +249,8 @@ ui <- dashboardPage(
                                                                          uiOutput("monthYearStat"))))))
                                  ),
                                  tabPanel("Table",
-                                          fluidRow(column(width=12,selectInput("monthTableType","Select monthly data type to view:",
+                                          fluidRow(column(width=12,selectInput("monthTableType",
+                                                                               "Select monthly data type to view:",
                                                                                choices = c("Long-term statistics for each month"=1,
                                                                                            "Monthly statistics from all years"=2)))),
                                           conditionalPanel(
@@ -305,6 +310,7 @@ ui <- dashboardPage(
                                  
                           )))
              ),
+             # Real-time data
              tabPanel("Real-time Data",
                       fluidRow(column(6, h4(textOutput("noRT")))),
                       textOutput("rtExists"),tags$head(tags$style("#rtExists{color: white}")),
@@ -325,7 +331,9 @@ ui <- dashboardPage(
                                                                                      label = "Log scale on 'Discharge' axis", 
                                                                                      value= FALSE)))))),
                                  tabPanel("Table"))))),
-             tabPanel("Station Comparison")
+             # Station comparison
+             tabPanel("Station Comparison",
+                      h4("Under development"),icon("smile-o", lib = "font-awesome"))
       )
     )
   )
@@ -757,7 +765,7 @@ server <- function(input, output, session) {
   output$annInstStat <- renderUI({
     selectizeInput("annInstStat", 
                    label = "Display annual instantaneous peak values:",
-                   choices = c("Minimum"="MIN","Maximum"="MAX"),#as.list(unique(annInstData()[annInstData()$Parameter == input$annualParam,]$PEAK_CODE)),
+                   choices = c("Minimum"="MIN","Maximum"="MAX"),
                    multiple =TRUE)
   })
   
@@ -951,8 +959,9 @@ server <- function(input, output, session) {
   output$monthStat <- renderUI({
     selectizeInput("monthStat", 
                    label = "Select monthly statistic(s):",
-                   choices =   c("Mean"="Mean","Maximum"="Maximum","Minimum"="Minimum","Median"="Median","75th Percentile"="Percentile75",
-                                 "25th Percentile"="Percentile25", "95th Percentile"="Percentile95", "5th Percentile"="Percentile5"),
+                   choices =   c("Mean"="Mean","Maximum"="Maximum","Minimum"="Minimum","Median"="Median",
+                                 "75th Percentile"="Percentile75","25th Percentile"="Percentile25", 
+                                 "95th Percentile"="Percentile95", "5th Percentile"="Percentile5"),
                    multiple =TRUE,
                    selected = c("Mean","Median"))
   })
@@ -969,8 +978,9 @@ server <- function(input, output, session) {
   output$monthYearStat <- renderUI({
     selectizeInput("monthYearStat", 
                    label = "Select monthly statistic(s):",
-                   choices = c("Mean"="Mean","Maximum"="Maximum","Minimum"="Minimum","Median"="Median","75th Percentile"="75th Percentile", 
-                               "25th Percentile"="25th Percentile", "95th Percentile"="95th Percentile", "5th Percentile"="5th Percentile"),
+                   choices = c("Mean"="Mean","Maximum"="Maximum","Minimum"="Minimum","Median"="Median",
+                               "75th Percentile"="75th Percentile", "25th Percentile"="25th Percentile", 
+                               "95th Percentile"="95th Percentile", "5th Percentile"="5th Percentile"),
                    multiple =TRUE)
   })
   
@@ -999,14 +1009,14 @@ server <- function(input, output, session) {
     
     # Add ribbons if checked
     if (input$monthMaxMin){
-      plot <- plot %>%  add_ribbons(data=plot.data,x= ~Month,ymin= ~Minimum, ymax= ~Maximum,name="Max-Min Range",color=I("lightblue1"))}
-    #fillcolor="rgba(224,255,255,.7)",line=list(color='rgba(7, 164, 181, 0.05)'))}
+      plot <- plot %>%  add_ribbons(data=plot.data,x= ~Month,ymin= ~Minimum, ymax= ~Maximum,name="Max-Min Range",
+                                    color=I("lightblue1"))}
     if (input$month90){
-      plot <- plot %>%  add_ribbons(data=plot.data,x= ~Month,ymin= ~Percentile5, ymax= ~Percentile95,name="90% of Flows",color=I("lightblue2"))}
-    # fillcolor="rgba(201,229,229,.7)",line=list(color='rgba(7, 164, 181, 0.05)'))}
+      plot <- plot %>%  add_ribbons(data=plot.data,x= ~Month,ymin= ~Percentile5, ymax= ~Percentile95,name="90% of Flows",
+                                    color=I("lightblue2"))}
     if (input$month50){
-      plot <- plot %>%  add_ribbons(data=plot.data,x= ~Month,ymin= ~Percentile25, ymax= ~Percentile75,name="50% of Flows",color=I("lightblue3"))}
-    #  fillcolor="rgba(179,204,204,.7)",line=list(color='rgba(7, 164, 181, 0.05)'))}
+      plot <- plot %>%  add_ribbons(data=plot.data,x= ~Month,ymin= ~Percentile25, ymax= ~Percentile75,name="50% of Flows",
+                                    color=I("lightblue3"))}
     # Add lines if selected
     if ("Maximum" %in% input$monthStat){
       plot <- plot %>%  add_trace(data=plot.data,x= ~Month,y=~Maximum,name="Maximum",
@@ -1071,7 +1081,8 @@ server <- function(input, output, session) {
                                     Stat=replace(Stat, Stat=="Percentile5", "5th Percentile"),
                                     Stat=replace(Stat, Stat=="Percentile25", "25th Percentile")) %>% 
       spread(Month,Value) %>% 
-      rename("Summary Statistic"=Stat,'Jan'="1",'Feb'="2",'Mar'="3",'Apr'="4",'May'="5",'Jun'="6",'Jul'="7",'Aug'="8",'Sep'="9",'Oct'="10",'Nov'="11",'Dec'="12")
+      rename("Summary Statistic"=Stat,'Jan'="1",'Feb'="2",'Mar'="3",'Apr'="4",'May'="5",
+             'Jun'="6",'Jul'="7",'Aug'="8",'Sep'="9",'Oct'="10",'Nov'="11",'Dec'="12")
     
     if (input$monthTableSwitch){
       table <- table %>% 
@@ -1198,8 +1209,9 @@ server <- function(input, output, session) {
   output$dailyStat <- renderUI({
     selectizeInput("dailyStat", 
                    label = "Select daily statistic(s):",
-                   choices = c("Mean"="Mean","Maximum"="Maximum","Minimum"="Minimum","Median"="Median","75th Percentile"="Percentile75", 
-                               "25th Percentile"="Percentile25", "95th Percentile"="Percentile95", "5th Percentile"="Percentile5"),
+                   choices = c("Mean"="Mean","Maximum"="Maximum","Minimum"="Minimum","Median"="Median",
+                               "75th Percentile"="Percentile75", "25th Percentile"="Percentile25", 
+                               "95th Percentile"="Percentile95", "5th Percentile"="Percentile5"),
                    multiple =TRUE,
                    selected = c("Mean","Median"))
   })
@@ -1240,21 +1252,29 @@ server <- function(input, output, session) {
     
     # Add lines if selected
     if ("Maximum" %in% input$dailyStat){
-      plot <- plot %>%  add_lines(data=plot.data,x= ~Date,y=~Maximum,name="Maximum",line=list(color='rgba(1,102,94, 1)',width=2))}
+      plot <- plot %>%  add_lines(data=plot.data,x= ~Date,y=~Maximum,name="Maximum",
+                                  line=list(color='rgba(1,102,94, 1)',width=2))}
     if ("Percentile95" %in% input$dailyStat){
-      plot <- plot %>%  add_lines(data=plot.data,x= ~Date,y=~Percentile95,name="95th Percentile",line=list(color='rgba(53,151,143, 1)',width=2))}
+      plot <- plot %>%  add_lines(data=plot.data,x= ~Date,y=~Percentile95,name="95th Percentile",
+                                  line=list(color='rgba(53,151,143, 1)',width=2))}
     if ("Percentile75" %in% input$dailyStat){
-      plot <- plot %>%  add_lines(data=plot.data,x= ~Date,y=~Percentile75,name="75th Percentile",line=list(color='rgba(128,205,193, 1)',width=2))}
+      plot <- plot %>%  add_lines(data=plot.data,x= ~Date,y=~Percentile75,name="75th Percentile",
+                                  line=list(color='rgba(128,205,193, 1)',width=2))}
     if ("Mean" %in% input$dailyStat){
-      plot <- plot %>%  add_lines(data=plot.data,x= ~Date,y=~Mean,name="Mean",line=list(color='rgba(61,151,53, 1)',width=2))}
+      plot <- plot %>%  add_lines(data=plot.data,x= ~Date,y=~Mean,name="Mean",
+                                  line=list(color='rgba(61,151,53, 1)',width=2))}
     if ("Median" %in% input$dailyStat){
-      plot <- plot %>%  add_lines(data=plot.data,x= ~Date,y=~Median,name="Median",line=list(color='rgba(143,53,151, 1)',width=2))}
+      plot <- plot %>%  add_lines(data=plot.data,x= ~Date,y=~Median,name="Median",
+                                  line=list(color='rgba(143,53,151, 1)',width=2))}
     if ("Percentile25" %in% input$dailyStat){
-      plot <- plot %>%  add_lines(data=plot.data,x= ~Date,y=~Percentile25,name="25th Percentile",line=list(color='rgba(223,194,125, 1)',width=2))}
+      plot <- plot %>%  add_lines(data=plot.data,x= ~Date,y=~Percentile25,name="25th Percentile",
+                                  line=list(color='rgba(223,194,125, 1)',width=2))}
     if ("Percentile5" %in% input$dailyStat){
-      plot <- plot %>%  add_lines(data=plot.data,x= ~Date,y=~Percentile5,name="5th Percentile",line=list(color='rgba(191,129,45, 1)',width=2))}
+      plot <- plot %>%  add_lines(data=plot.data,x= ~Date,y=~Percentile5,name="5th Percentile",
+                                  line=list(color='rgba(191,129,45, 1)',width=2))}
     if ("Minimum" %in% input$dailyStat){
-      plot <- plot %>%  add_lines(data=plot.data,x= ~Date,y=~Minimum,name="Minimum",line=list(color='rgba(140,81,10, 1)',width=2))}
+      plot <- plot %>%  add_lines(data=plot.data,x= ~Date,y=~Minimum,name="Minimum",
+                                  line=list(color='rgba(140,81,10, 1)',width=2))}
     
     # Add data from specific years
     plot <- plot %>% add_lines(data=dailyYears() %>% filter(Parameter==input$dailyParam),x= ~Date,y= ~Value, color=~Year)
