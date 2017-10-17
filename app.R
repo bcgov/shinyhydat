@@ -56,7 +56,7 @@ ui <- dashboardPage(
       textOutput("onlineHYDAT"),br(),br(),
       textOutput("test")#,
       #actionButton("downloadHYDAT","Download HYDAT")  #NEED TO MOVE QUESTION FROM CONSOLE TO WINDOW
-      )
+    )
     
     
   ),
@@ -81,7 +81,7 @@ ui <- dashboardPage(
                       br(),
                       DT::dataTableOutput("allstationsTable")
                       
-                                      ),
+             ),
              tabPanel("Stations Map",
                       br(),
                       fluidPage(column(width=8,
@@ -190,8 +190,8 @@ ui <- dashboardPage(
                                           ))
                                  ),
                                  tabPanel("Table",
-                                          h5("clean up table"),
-                                          DT::dataTableOutput("annualTable"))
+                                          fluidRow(column(width=7,
+                                                          DT::dataTableOutput("annualTable"))))
                           )
                         )
                       ),
@@ -308,10 +308,10 @@ ui <- dashboardPage(
                                                                    label = "Log scale on 'Discharge' axis", 
                                                                    value= FALSE))))))),
              tabPanel("Station Comparison")
-             )
       )
+    )
+  )
 )
-      )
 
 #######################################################################################
 # Set up the server (where all the magic happens)
@@ -640,7 +640,7 @@ server <- function(input, output, session) {
       data.level <- data %>% filter(Parameter=="LEVEL") %>% 
         mutate("Water Level (m)"=Value,"Water Level Symbol"=Symbol)%>%
         select(-Parameter,-Value,-Symbol)
-      table.data <- merge(data2,data3,by=c("Date","Year","Month"),all=TRUE) 
+      table.data <- merge(data.flow,data.level,by=c("Date","Year","Month"),all=TRUE) 
     } else if ("Q" %in% check$DATA_TYPE & !("H" %in% check$DATA_TYPE)) { # just Q
       table.data <- data %>% 
         rename("Flow (cms)"=Value,"Flow Symbol"=Symbol) %>%
@@ -796,9 +796,30 @@ server <- function(input, output, session) {
   
   #Create and render table output
   #include extremes somwehow?
-  output$annualTable <- DT::renderDataTable({
-    annualData()
-  })
+  output$annualTable <- DT::renderDataTable(
+    annualData() %>%  select(-STATION_NUMBER) %>%  mutate(Value=round(Value,3),Time=NA) %>% 
+      select(Year,Parameter,Sum_stat,Value,Date,Time,Symbol) %>% 
+      bind_rows(annInstData() %>% select(YEAR,Parameter,PEAK_CODE,Value,Date,Time,Symbol) %>% 
+                  mutate(PEAK_CODE=replace(PEAK_CODE, PEAK_CODE=="MAX", "INST. MAX"),
+                         PEAK_CODE=replace(PEAK_CODE, PEAK_CODE=="MIN", "INST. MIN"),
+                         Parameter=replace(Parameter, Parameter=="Flow", "FLOW"),
+                         Parameter=replace(Parameter, Parameter=="Water Level", "LEVEL"),
+                         Value=round(Value,3)) %>% 
+                  rename("Year"=YEAR,"Sum_stat"=PEAK_CODE)),
+    rownames=FALSE,
+    selection=list(mode="single"),
+    filter = 'top',
+    colnames = c('Year', 'Parameter', 'Summary Statistic','Value','On Date','Time','Symbol'),
+    extensions = c("Scroller","ColReorder","Buttons"),
+    options = list(scrollX = TRUE,
+                   scrollY=450,deferRender = TRUE,scroller = TRUE,
+                   dom = 'Bfrtip', 
+                   colReorder = TRUE,
+                   buttons= list(list(extend='colvis',columns=c(1:5))),
+                   columnDefs = list(list(className = 'dt-center', targets = 0:4)))
+    
+  )
+  
   
   #Download data buttons
   output$download.annualData <- downloadHandler(
@@ -1014,7 +1035,7 @@ server <- function(input, output, session) {
     
     daily.data <- dailyData() %>% filter(Parameter==input$monthParam) %>% mutate(Month=as.integer(format(Date,'%m')))
     month.data <- monthData() %>% spread(Stat,Value) %>% filter(Parameter==input$monthParam)
-
+    
     #Create the plot
     plot <- plot_ly() %>% 
       add_trace(data=daily.data, x=~Month, y=~Value,type="box", name="Monthly Quartiles and Outliers") %>% 
