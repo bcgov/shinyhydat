@@ -206,31 +206,41 @@ ui <- dashboardPage(
                           tabBox(width = 12,
                                  tabPanel("Graph",
                                           fluidRow(column(width=12,h4(textOutput("monthPlot.title")))),
-                                          fluidRow(column(width=12,plotlyOutput('monthPlot'))),
+                                          conditionalPanel(
+                                            condition = "input.monthPlotType == 'Continuous'",
+                                            fluidRow(column(width=12,plotlyOutput('monthPlot')))),
+                                          conditionalPanel(
+                                            condition = "input.monthPlotType == 'Box Plot'",
+                                            fluidRow(column(width=12,plotlyOutput('monthPlot2')))),
                                           h5("* Missing dates ignored"),
                                           br(),br(),
                                           fluidRow(box(width = 9,title = "Graph Options",status = "primary",
                                                        fluidRow(column(width=3,hr(),
                                                                        uiOutput("monthParam"),
+                                                                       selectInput("monthPlotType","Type of graph:",choices = c("Continuous","Box Plot"), selected = "Continuous"),
                                                                        checkboxInput("monthlog", 
                                                                                      label = "Log scale on primary Y-axis", 
                                                                                      value= FALSE)),
                                                                 column(width=1),
-                                                                column(width=4,hr(),
-                                                                       uiOutput("monthStat"),
-                                                                       checkboxInput("monthMaxMin",
-                                                                                     label = "Display Maximum-Minimum range",
-                                                                                     value=TRUE),
-                                                                       checkboxInput("month90",
-                                                                                     label = "Display 5-95 percentile range",
-                                                                                     value=TRUE),
-                                                                       checkboxInput("month50",
-                                                                                     label = "Display 25-75 percentile range",
-                                                                                     value=TRUE)),
+                                                                conditionalPanel(
+                                                                  condition = "input.monthPlotType == 'Continuous'",
+                                                                  column(width=4,hr(),
+                                                                         uiOutput("monthStat"),
+                                                                         checkboxInput("monthMaxMin",
+                                                                                       label = "Display Maximum-Minimum range",
+                                                                                       value=TRUE),
+                                                                         checkboxInput("month90",
+                                                                                       label = "Display 5-95 percentile range",
+                                                                                       value=TRUE),
+                                                                         checkboxInput("month50",
+                                                                                       label = "Display 25-75 percentile range",
+                                                                                       value=TRUE))),
                                                                 column(width=1),
-                                                                column(width=3,hr(),
-                                                                       uiOutput("monthYear"),
-                                                                       uiOutput("monthYearStat")))))
+                                                                conditionalPanel(
+                                                                  condition = "input.monthPlotType == 'Continuous'",
+                                                                  column(width=3,hr(),
+                                                                         uiOutput("monthYear"),
+                                                                         uiOutput("monthYearStat"))))))
                                  ),
                                  tabPanel("Table",
                                           h5("*** fix year and month stats names (Percentile25"),
@@ -993,6 +1003,24 @@ server <- function(input, output, session) {
     plot <- plot %>% add_trace(data=allmonthData() %>% 
                                  filter(Parameter==input$monthParam & Sum_stat %in% input$monthYearStat & Year %in% input$monthYear),
                                x= ~Month,y= ~Value, color=~paste0(Year," ",Sum_stat),mode = 'lines+markers',line=list(width=3))
+    
+    plot
+  })
+  
+  #Create and render the monthly plot
+  output$monthPlot2 <- renderPlotly({
+    
+    daily.data <- dailyData() %>% filter(Parameter==input$monthParam) %>% mutate(Month=as.integer(format(Date,'%m')))
+    month.data <- monthData() %>% spread(Stat,Value) %>% filter(Parameter==input$monthParam)
+
+    #Create the plot
+    plot <- plot_ly() %>% 
+      add_trace(data=daily.data, x=~Month, y=~Value,type="box", name="Monthly Quartiles and Outliers") %>% 
+      add_trace(data=month.data, x=~Month, y=~Mean,type='scatter',marker=list(symbol=4,size=10), name="Monthly Mean") %>% 
+      layout(xaxis=list(title="Month",tickvals = seq(1:12),ticktext = c("Jan","Feb","Mar","Apr","May","Jun","Jul",
+                                                                        "Aug","Sep","Oct","Noc","Dec")),
+             yaxis=monthlyPlot.y(),
+             showlegend = TRUE)
     
     plot
   })
