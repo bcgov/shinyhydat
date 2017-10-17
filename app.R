@@ -127,14 +127,13 @@ ui <- dashboardPage(
                       # Historical Long-term
                       conditionalPanel(
                         condition = "input.histView == 'Long-term'",
-                        fluidRow(column(width=3, 
+                        fluidRow(column(width=6,h4(textOutput("ltplot.title"))),
+                                  column(width=3, 
                                         downloadButton('download.ltData', 'Complete Daily Dataset'))),
                         br(),
                         fluidRow(
                           tabBox(width = 12,
                                  tabPanel("Graph",
-                                          fluidRow(column(width=12,
-                                                          h4(textOutput("ltplot.title")))),
                                           fluidRow(column(width=12,plotlyOutput('ltplot'))),
                                           br(),br(),
                                           fluidRow(box(width = 6,title = "Graph Options",status = "primary",
@@ -164,7 +163,8 @@ ui <- dashboardPage(
                       # Historical Annual
                       conditionalPanel(
                         condition = "input.histView == 'Annual'",
-                        fluidRow(column(width=12, 
+                        fluidRow(column(width=6,h4(textOutput("annualPlot.title"))),
+                                 column(width=6, 
                                         downloadButton('download.annualData', 
                                                        label='Annual Summary Data'), 
                                         downloadButton('download.annualPeakData', 
@@ -173,7 +173,7 @@ ui <- dashboardPage(
                         fluidRow(
                           tabBox(width = 12,
                                  tabPanel("Graph",
-                                          fluidRow(column(width=12,h4(textOutput("annualPlot.title")))),
+                                          fluidRow(column(width=12)),
                                           fluidRow(column(width=12,plotlyOutput('annualPlot'))),
                                           h5("* Mean values produced only for years of complete data"),
                                           br(),br(),
@@ -198,20 +198,21 @@ ui <- dashboardPage(
                       # Historical Monthly
                       conditionalPanel(
                         condition = "input.histView == 'Monthly'",
-                        fluidRow(column(width=3, 
+                        fluidRow(column(width=6,h4(textOutput("monthPlot.title"))),
+                                 column(width=6, 
                                         downloadButton('download.monthData', 'Monthly Summary Data'),
                                         downloadButton('download.HYDATmonthData', 'Monthly HYDAT Data'))),
                         br(),
                         fluidRow(
                           tabBox(width = 12,
                                  tabPanel("Graph",
-                                          fluidRow(column(width=12,h4(textOutput("monthPlot.title")))),
                                           conditionalPanel(
                                             condition = "input.monthPlotType == 'Continuous'",
                                             fluidRow(column(width=12,plotlyOutput('monthPlot')))),
                                           conditionalPanel(
                                             condition = "input.monthPlotType == 'Box Plot'",
-                                            fluidRow(column(width=12,plotlyOutput('monthPlot2')))),
+                                            fluidRow(column(width=12,plotlyOutput('monthPlot2'),
+                                                            h5("*** LIST WHAT THE BOXES ARE")))),
                                           h5("* Missing dates ignored"),
                                           br(),br(),
                                           fluidRow(box(width = 9,title = "Graph Options",status = "primary",
@@ -249,16 +250,16 @@ ui <- dashboardPage(
                           )
                         )
                       ),
-                      
+                      # Historical daily
                       conditionalPanel(
                         condition = "input.histView == 'Daily'",
-                        fluidRow(column(width =3, 
+                        fluidRow(column(width=6,h4(textOutput("dailyPlot.title"))),
+                                column(width =6, 
                                         downloadButton('download.dailySummaryData', 'Daily Summary Data'))),
                         br(),
                         fluidRow(
                           tabBox(width = 12,
                                  tabPanel("Graph",
-                                          fluidRow(column(width=12,h4(textOutput("dailyPlot.title")))),
                                           fluidRow(column(width=12,plotlyOutput('dailyPlot'))),
                                           br(),br(),
                                           fluidRow(box(width=9,title = "Graph Options",status = "primary",
@@ -296,17 +297,21 @@ ui <- dashboardPage(
                       textOutput("rtExists"),tags$head(tags$style("#rtExists{color: white}")),
                       conditionalPanel(
                         condition = "output.rtExists=='Yes'",
-                        fluidRow(column(3, downloadButton('download.rtData', 'Real-time Data'))),
+                        fluidRow(column(6,h4(textOutput("rtplot.title"))),
+                                 column(6, downloadButton('download.rtData', 'Real-time Data'))),
                         br(),
-                        fluidRow(column(12,h4(textOutput("rtplot.title")))),
-                        fluidRow(column(12,plotlyOutput('rtplot'))),
-                        br(),br(),
-                        fluidRow(box(width =4,title = "Graph Options",status = "primary",
-                                     fluidRow(column(12,hr(),
-                                                     uiOutput("rtParam"),
-                                                     checkboxInput("rtlog", 
-                                                                   label = "Log scale on 'Discharge' axis", 
-                                                                   value= FALSE))))))),
+                        fluidRow(
+                          tabBox(width = 12,
+                                 tabPanel("Graph",
+                                          fluidRow(column(12,plotlyOutput('rtplot'))),
+                                          br(),br(),
+                                          fluidRow(box(width =4,title = "Graph Options",status = "primary",
+                                                       fluidRow(column(12,hr(),
+                                                                       uiOutput("rtParam"),
+                                                                       checkboxInput("rtlog", 
+                                                                                     label = "Log scale on 'Discharge' axis", 
+                                                                                     value= FALSE)))))),
+                                 tabPanel("Table"))))),
              tabPanel("Station Comparison")
       )
     )
@@ -569,7 +574,7 @@ server <- function(input, output, session) {
   
   # PLot title
   output$ltplot.title <- renderText({
-    paste0("Daily Data - ",metaData()[2,2]," (",metaData()[1,2],")")
+    paste0("Long-term Daily Data Record - ",metaData()[2,2]," (",metaData()[1,2],")")
   })
   
   # Plot the discharge axis on log-scale if checked
@@ -747,7 +752,7 @@ server <- function(input, output, session) {
   
   # Create annual plot title
   output$annualPlot.title <- renderText({
-    paste0("Annual ",ifelse(input$annualParam=="FlOW",paste("FLow"),paste("Water Level"))," Statistics - ",metaData()[2,2]," (",metaData()[1,2],")")
+    paste0("Annual Summary Statistics - ",metaData()[2,2]," (",metaData()[1,2],")")
   })
   
   # Plot the primary y-axis on log-scale if checked
@@ -794,6 +799,7 @@ server <- function(input, output, session) {
     plot
   })
   
+  
   #Create and render table output
   #include extremes somwehow?
   output$annualTable <- DT::renderDataTable(
@@ -815,7 +821,7 @@ server <- function(input, output, session) {
                    scrollY=450,deferRender = TRUE,scroller = TRUE,
                    dom = 'Bfrtip', 
                    colReorder = TRUE,
-                   buttons= list(list(extend='colvis',columns=c(1:5))),
+                   buttons= list(list(extend='colvis',columns=c(0:6))),
                    columnDefs = list(list(className = 'dt-center', targets = 0:4)))
     
   )
@@ -959,8 +965,7 @@ server <- function(input, output, session) {
   
   #Render plot title
   output$monthPlot.title <- renderText({
-    paste0("Monthly ",ifelse(input$monthParam=="FLOW",paste("Flow"),paste("Water Level")),
-           " Statistics - ",metaData()[2,2]," (",metaData()[1,2],")")
+    paste0("Monthly Summary Statistics - ",metaData()[2,2]," (",metaData()[1,2],")")
   })
   
   # Plot the primary-Yaxis on log-scale if checked
@@ -1146,9 +1151,7 @@ server <- function(input, output, session) {
   
   # Render the title
   output$dailyPlot.title <- renderText({
-    paste0("Daily ",
-           ifelse(input$dailyParam=="FLOW",paste("Flow"),paste("Water Level")),
-           " Statistics - ",metaData()[2,2]," (",metaData()[1,2],")")
+    paste0("Daily Summary Statistics - ",metaData()[2,2]," (",metaData()[1,2],")")
   })
   
   # Plot the primary-Yaxis on log-scale if checked
@@ -1164,7 +1167,7 @@ server <- function(input, output, session) {
     
     #create the plot
     plot <- plot_ly() %>% 
-      layout(xaxis=list(title="Day of Year"),#,tickformat= "%b-%d"
+      layout(xaxis=list(title="Day of Year",tickformat= "%b-%d"),
              yaxis=dailyPlot.y(),
              showlegend = TRUE)
     
