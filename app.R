@@ -14,6 +14,7 @@
 
 library(shiny) # 1.0.3 shiny
 library(shinydashboard)
+library(shinyWidgets)
 library(dplyr) ## >0.7.0 dplyr
 library(tidyr)
 library(leaflet)
@@ -244,8 +245,20 @@ ui <- dashboardPage(
                                                                          uiOutput("monthYearStat"))))))
                                  ),
                                  tabPanel("Table",
-                                          h5("*** FIX TABLE BELOW"),
-                                          DT::dataTableOutput("monthTable")
+                                          fluidRow(column(width=12,selectInput("monthTableType","Select monthly data type to view:",
+                                                                               choices = c("Long-term statistics for each month"=1,
+                                                                                           "Monthly statistics from all years"=2)))),
+                                          conditionalPanel(
+                                            condition = "input.monthTableType == 1",
+                                            fluidRow(column(width=12, materialSwitch("monthTableSwitch",
+                                                                                     "Switch rows and columns",
+                                                                                     value=FALSE,right=TRUE, 
+                                                                                     status = "primary"))),
+                                            fluidRow(column(width=12, DT::dataTableOutput("monthTable")))),
+                                          conditionalPanel(
+                                            condition = "input.monthTableType == 2",
+                                            fluidRow(column(width=8, DT::dataTableOutput("monthHYDATTable")))
+                                          )
                                  )
                           )
                         )
@@ -801,7 +814,6 @@ server <- function(input, output, session) {
   
   
   #Create and render table output
-  #include extremes somwehow?
   output$annualTable <- DT::renderDataTable(
     annualData() %>%  select(-STATION_NUMBER) %>%  mutate(Value=round(Value,3),Time=NA) %>% 
       select(Year,Parameter,Sum_stat,Value,Date,Time,Symbol) %>% 
@@ -923,8 +935,7 @@ server <- function(input, output, session) {
         select(Parameter,YEAR,MONTH,Sum_stat,Value,Date_occurred)
     }
     
-    monthly.data <- as.data.frame(monthly.data) %>%
-      mutate(YEAR = as.factor(YEAR))
+    monthly.data <- as.data.frame(monthly.data)
     monthly.data
   })
   
@@ -1053,15 +1064,59 @@ server <- function(input, output, session) {
     plot
   })
   
-  #Create and render table output
-  output$monthTable <- DT::renderDataTable({
-    monthData()
+  monthTableOutput <- reactive({
+    table <- monthData() %>% mutate(Value=round(Value,3),
+                                    Stat=replace(Stat, Stat=="Percentile75", "75th Percentile"),
+                                    Stat=replace(Stat, Stat=="Percentile95", "95th Percentile"),
+                                    Stat=replace(Stat, Stat=="Percentile5", "5th Percentile"),
+                                    Stat=replace(Stat, Stat=="Percentile25", "25th Percentile")) %>% 
+      spread(Month,Value) %>% 
+      rename("Summary Statistic"=Stat,'Jan'="1",'Feb'="2",'Mar'="3",'Apr'="4",'May'="5",'Jun'="6",'Jul'="7",'Aug'="8",'Sep'="9",'Oct'="10",'Nov'="11",'Dec'="12")
+    
+    if (input$monthTableSwitch){
+      table <- table %>% 
+        gather(Month,Value,3:14) %>% 
+        spread("Summary Statistic",Value) %>% 
+        mutate(Month=as.factor(Month))
+      levels(table$Month) <- c('Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec')
+    }
+    
+    table
+    
   })
-  #Create and render table output
-  # output$monthHYDATTable <- DT::renderDataTable({
-  #   HYDATmonthData()
-  # })
   
+  #Create and render table output
+  output$monthTable <- DT::renderDataTable(
+    monthTableOutput(),
+    rownames=FALSE,
+    selection=list(mode="single"),
+    filter = 'top',
+    extensions = c("Scroller"),
+    options = list(scrollX = TRUE,
+                   scrollY=450,deferRender = TRUE,scroller = TRUE,
+                   columnDefs = list(list(className = 'dt-center', targets = "_all"))
+                   )
+  )
+  
+  #Create and render table output
+  output$monthHYDATTable <- DT::renderDataTable(
+    HYDATmonthData() %>% rename(Year=YEAR,Month=MONTH,"Summary Statistic"=Sum_stat,"On Date"=Date_occurred) %>% 
+      mutate(Month=month.abb[Month],
+             Value=round(Value,3),
+             Year=as.numeric(Year)),
+    rownames=FALSE,
+    selection=list(mode="single"),
+    filter = 'top',
+    extensions = c("Scroller","ColReorder","Buttons"),
+    options = list(scrollX = TRUE,
+                   scrollY=450,deferRender = TRUE,scroller = TRUE,
+                   columnDefs = list(list(className = 'dt-center', targets = "_all")),
+                   dom = 'Bfrtip', 
+                   colReorder = TRUE,
+                   buttons= list(list(extend='colvis',columns=c(0:5)))
+    )
+  )
+
   
   #Download data buttons
   output$download.monthData <- downloadHandler(
