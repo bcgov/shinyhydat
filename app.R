@@ -329,7 +329,9 @@ ui <- dashboardPage(
                                                                        checkboxInput("rtlog", 
                                                                                      label = "Log scale on 'Discharge' axis", 
                                                                                      value= FALSE)))))),
-                                 tabPanel("Table"))))),
+                                 tabPanel("Table",
+                                          fluidRow(column(width=6,
+                                                          (DT::dataTableOutput("realtimeTable"))))))))),
              # Station comparison
              tabPanel("Station Comparison",
                       h4("Under development"),icon("smile-o", lib = "font-awesome"))
@@ -1356,7 +1358,10 @@ server <- function(input, output, session) {
       realtime.LEVEL <- realtime.LEVEL[0,]
     }
     
-    realtime.data <- rbind(realtime.FLOW,realtime.LEVEL)
+    realtime.data <- rbind(realtime.FLOW,realtime.LEVEL) %>% 
+      mutate(DateTime=Date,
+             Date=format(Date, format="%Y-%m-%d"),
+             Time=strftime(DateTime, format="%H:%M:%S",usetz=TRUE))
     realtime.data
     
   })
@@ -1394,26 +1399,43 @@ server <- function(input, output, session) {
     
     if (length(input$rtParam)==2) { #If both flow and water level
       plot <- plot_ly() %>% 
-        add_lines(data=realtimeData() %>% filter(Parameter=="FLOW"),x= ~Date,y= ~Value, name="Discharge") %>% 
-        add_lines(data=realtimeData() %>% filter(Parameter=="LEVEL"),x= ~Date,y= ~Value, name="Water Level", yaxis = "y2") %>% 
+        add_lines(data=realtimeData() %>% filter(Parameter=="FLOW"),x= ~DateTime,y= ~Value, name="Discharge") %>% 
+        add_lines(data=realtimeData() %>% filter(Parameter=="LEVEL"),x= ~DateTime,y= ~Value, name="Water Level", yaxis = "y2") %>% 
         layout(xaxis=list(title="Date"),
                yaxis=rtplot.y(),
                yaxis2 = list(overlaying = "y",side = "right",title = "Water Level (m)"))}
     else if (length(input$rtParam)==1 & input$rtParam=="FLOW") { #if just flow data
       plot <- plot_ly() %>% 
-        add_lines(data=realtimeData() %>% filter(Parameter=="FLOW"),x= ~Date,y= ~Value, name="Discharge") %>% 
+        add_lines(data=realtimeData() %>% filter(Parameter=="FLOW"),x= ~DateTime,y= ~Value, name="Discharge") %>% 
         layout(xaxis=list(title="Date"),
                yaxis=rtplot.y(),
                showlegend = TRUE)} 
     else if (length(input$rtParam)==1 & input$rtParam=="LEVEL") { # if just level data
       plot <- plot_ly() %>% 
-        add_lines(data=realtimeData() %>% filter(Parameter=="LEVEL"),x= ~Date,y= ~Value, name="Water Level") %>% 
+        add_lines(data=realtimeData() %>% filter(Parameter=="LEVEL"),x= ~DateTime,y= ~Value, name="Water Level") %>% 
         layout(xaxis=list(title="Date"),
                yaxis=list(title = "Water Level (m)"),
                showlegend = TRUE)} 
     
     plot
   })
+  
+
+    #Create and render table output
+  output$realtimeTable <- DT::renderDataTable(
+    realtimeData() %>% select(DateTime,Date,Time,Parameter,Value),
+    rownames=FALSE,
+    selection=list(mode="single"),
+    filter = 'top',
+    extensions = c("Scroller"),
+    options = list(scrollX = TRUE,
+                   scrollY=450,deferRender = TRUE,scroller = TRUE,
+                   columnDefs = list(list(className = 'dt-center', targets = "_all")),
+                   dom = 'Bfrtip', 
+                   colReorder = TRUE,
+                   buttons= list(list(extend='colvis',columns="_all"))
+    )
+  )
   
   # Download button for data
   output$download.rtData <- downloadHandler(
