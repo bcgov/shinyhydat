@@ -434,8 +434,11 @@ server <- function(input, output, session) {
   ################################
   
   output$map <- renderLeaflet({
-    leaflet(stations) %>% addTiles() %>%
-      #setView(lng = -125, lat = 54, zoom = 5) # set centre and extent of map
+    leaflet(stations) %>% addTiles() %>% 
+      addCircleMarkers(layerId="selected",
+                       data = filter(stations, STATION_NUMBER %in% values$station),
+                       lng = ~LONGITUDE,lat = ~LATITUDE, 
+                       color = "red", radius = 7) %>%
       addCircleMarkers(data= stations, lng = ~LONGITUDE, lat = ~LATITUDE, layerId = ~STATION_NUMBER, color = "blue", radius = 2,
                        label = ~paste0(STATION_NAME, " (",STATION_NUMBER,") - ",HYD_STATUS))
     
@@ -448,7 +451,7 @@ server <- function(input, output, session) {
       addCircleMarkers(layerId="selected",
                        data = filter(stations, STATION_NUMBER %in% values$station),
                        lng = ~LONGITUDE,lat = ~LATITUDE, 
-                       color = "green", radius = 6)
+                       color = "red", radius = 7)
   })
   
   # Displayed the chosen station on the map
@@ -740,9 +743,10 @@ server <- function(input, output, session) {
       mutate(Date=as.Date(paste(YEAR,MONTH,DAY,sep="-"),format="%Y-%m-%d"),
              Time=paste0(HOUR,":",ifelse(nchar(MINUTE)>1,paste(MINUTE),paste0(0,MINUTE))," ",TIME_ZONE),
              DateTime=paste0("On ",Date," at ",Time),
-             Symbol=replace(Symbol, is.na(Symbol), "")) %>% 
+             Symbol=replace(Symbol, is.na(Symbol), ""),
+             Parameter=replace(Parameter, Parameter=="Flow", "FLOW"),
+             Parameter=replace(Parameter, Parameter=="Water Level", "LEVEL")) %>% 
       filter(YEAR >= input$histYears[1] & YEAR <= input$histYears[2])
-    
     annual.instant
   })
   
