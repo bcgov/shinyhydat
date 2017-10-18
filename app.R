@@ -1359,9 +1359,10 @@ server <- function(input, output, session) {
     }
     
     realtime.data <- rbind(realtime.FLOW,realtime.LEVEL) %>% 
-      mutate(DateTime=Date,
+      mutate(DateTime=as.POSIXct(Date),
              Date=format(Date, format="%Y-%m-%d"),
              Time=strftime(DateTime, format="%H:%M:%S",usetz=TRUE))
+    attributes(realtime.data$DateTime)$tzone <- Sys.timezone()
     realtime.data
     
   })
@@ -1420,10 +1421,37 @@ server <- function(input, output, session) {
     plot
   })
   
+  
+  rtTableOutput <- reactive({
+    data <- realtimeData() %>% select(DateTime,Parameter,Value) %>% 
+      mutate(DateTime=format.Date(DateTime, method = 'toISOString'))
 
-    #Create and render table output
+  
+    if ("FLOW" %in% data$Parameter & "LEVEL" %in% data$Parameter) { # both Q and H
+      data.flow <- data %>% filter(Parameter=="FLOW") %>% 
+        mutate("Flow (cms)"=Value)%>%
+        select(-Parameter,-Value)
+      data.level <- data %>% filter(Parameter=="LEVEL") %>% 
+        mutate("Water Level (m)"=Value)%>%
+        select(-Parameter,-Value)
+      table.data <- merge(data.flow,data.level,by=c("DateTime"),all=TRUE) 
+    } else if ("FLOW" %in% data$Parameter & !("LEVEL" %in% data$Parameter)) { # just Q
+      table.data <- data %>% 
+        rename("Flow (cms)"=Value) %>%
+        select(-Parameter)
+    } else if (!("FLOW" %in% data$Parameter) & "LEVEL" %in% data$Parameter) { # just H
+      table.data <- data %>% 
+        rename("Water Level (m)"=Value) %>%
+        select(-Parameter)
+    }
+    table.data
+  })
+
+  #Create and render table output
   output$realtimeTable <- DT::renderDataTable(
-    realtimeData() %>% select(DateTime,Date,Time,Parameter,Value),
+    rtTableOutput() %>% 
+      arrange(desc(DateTime)) %>% 
+      rename("Date and Time (local)"=DateTime),
     rownames=FALSE,
     selection=list(mode="single"),
     filter = 'top',
