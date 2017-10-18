@@ -304,8 +304,7 @@ ui <- dashboardPage(
                                           ))
                                  ),
                                  tabPanel("Table",
-                                          h4("SELECTIZE BOX OR GROUPCHECKBOXES/RADIO BUTTONS TO SELECT WHATS ON GRAPH"),
-                                          h4("add station number column to all outputted datasets")
+                                          fluidRow(column(width=12,DT::dataTableOutput("dailyTable")))
                                  )
                                  
                           )))
@@ -1283,6 +1282,33 @@ server <- function(input, output, session) {
     
   })
   
+  
+  #Create and render table output
+  output$dailyTable <- DT::renderDataTable(
+    dailySummaryData() %>% 
+      mutate(Month=format(Date, format="%b"),
+             Date=format(Date, format="%b-%d"),
+             Value=round(Value,3),
+             Stat=replace(Stat, Stat=="Percentile75", "75th Percentile"),
+             Stat=replace(Stat, Stat=="Percentile95", "95th Percentile"),
+             Stat=replace(Stat, Stat=="Percentile5", "5th Percentile"),
+             Stat=replace(Stat, Stat=="Percentile25", "25th Percentile")) %>% 
+      rename("Day of Year"=Day,"Summary Statistic"=Stat) %>% 
+      spread("Summary Statistic",Value) %>% 
+      select(Parameter,Month,"Day of Year",Date,"Minimum", "5th Percentile", "25th Percentile","Median","Mean",
+             "75th Percentile","95th Percentile","Maximum"),
+    rownames=FALSE,
+    selection=list(mode="single"),
+    filter = 'top',
+    extensions = c("Scroller"),
+    options = list(scrollX = TRUE,
+                   scrollY=450,deferRender = TRUE,scroller = TRUE,
+                   columnDefs = list(list(className = 'dt-center', targets = "_all")),
+                   dom = 'Bfrtip', 
+                   colReorder = TRUE,
+                   buttons= list(list(extend='colvis',columns=c(0:11)))
+    )
+  )
   
   #Download data buttons
   output$download.dailySummaryData <- downloadHandler(
