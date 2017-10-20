@@ -131,7 +131,7 @@ ui <- dashboardPage(
                       conditionalPanel(
                         condition = "input.histView == 'Long-term'",
                         fluidRow(column(width=6,h4(textOutput("ltplot.title"))),
-                                  column(width=3, 
+                                 column(width=3, 
                                         downloadButton('download.ltData', 'Complete Daily Dataset'))),
                         br(),
                         fluidRow(
@@ -272,7 +272,7 @@ ui <- dashboardPage(
                       conditionalPanel(
                         condition = "input.histView == 'Daily'",
                         fluidRow(column(width=6,h4(textOutput("dailyPlot.title"))),
-                                column(width =6, 
+                                 column(width =6, 
                                         downloadButton('download.dailySummaryData', 'Daily Summary Data'))),
                         br(),
                         fluidRow(
@@ -342,7 +342,7 @@ ui <- dashboardPage(
                                                                                           selected = list("Max-Min Range",
                                                                                                           "5-95 Percentile Range",
                                                                                                           "25-75 Percentile Range"))
-                                                                       ))))),
+                                                                ))))),
                                  tabPanel("Table",
                                           fluidRow(column(width=6,
                                                           (DT::dataTableOutput("realtimeTable"))))))))),
@@ -762,10 +762,11 @@ server <- function(input, output, session) {
     annual.instant <- annual.instant %>% 
       mutate(Date=as.Date(paste(YEAR,MONTH,DAY,sep="-"),format="%Y-%m-%d"),
              Time=paste0(HOUR,":",ifelse(nchar(MINUTE)>1,paste(MINUTE),paste0(0,MINUTE))," ",TIME_ZONE),
-             DateTime=paste0("On ",Date," at ",Time),
+             DateTime=paste0(Date," at ",Time),
              Symbol=replace(Symbol, is.na(Symbol), ""),
              Parameter=replace(Parameter, Parameter=="Flow", "FLOW"),
-             Parameter=replace(Parameter, Parameter=="Water Level", "LEVEL")) %>% 
+             Parameter=replace(Parameter, Parameter=="Water Level", "LEVEL"),
+             Value=round(Value,3)) %>% 
       filter(YEAR >= input$histYears[1] & YEAR <= input$histYears[2])
     annual.instant
   })
@@ -809,7 +810,7 @@ server <- function(input, output, session) {
   
   # Create the annual plot
   output$annualPlot <- renderPlotly({
-    plot.data <- annualData() %>% filter(Parameter==input$annualParam)
+    plot.data <- annualData() %>% filter(Parameter==input$annualParam) %>% mutate(Value=round(Value,3))
     
     plot <- plot_ly() %>% 
       layout(xaxis=list(title="Year"),
@@ -819,29 +820,36 @@ server <- function(input, output, session) {
     # Add each annual statistic if selected
     if ("MAX" %in% input$annualStat){
       plot <- plot %>%  add_trace(data=plot.data %>% filter(Sum_stat=="MAX"),
-                                  x= ~Year,y=~Value,name="Daily Maximum",
-                                  mode = 'lines+markers',text=~paste("On",Date," ",Symbol),
+                                  x= ~Year,y=~Value,name="Daily Maximum",mode = 'lines+markers',
+                                  hoverinfo= 'text',text=~paste("Maximum: ",Value,
+                                                                "\nOn",Date," ",Symbol),
                                   line=list(color='rgba(1,102,94, 1)'))}
     if ("MEAN" %in% input$annualStat){
       plot <- plot %>%  add_trace(data=plot.data %>% filter(Sum_stat=="MEAN"),
-                                  x= ~Year,y=~Value,name="Daily Mean",
-                                  mode = 'lines+markers',
+                                  x= ~Year,y=~Value,name="Daily Mean", mode = 'lines+markers',
+                                  hoverinfo= 'text',text=~paste("Mean: ",Value),
                                   line=list(color='rgba(61,151,53, 1)'))}
     if ("MIN" %in% input$annualStat){
       plot <- plot %>%  add_trace(data=plot.data %>% filter(Sum_stat=="MIN"),
                                   x= ~Year,y=~Value,name="Daily Minimum",
-                                  mode = 'lines+markers',text=~paste("On",Date," ",Symbol),
+                                  mode = 'lines+markers',
+                                  hoverinfo= 'text',text=~paste("Minimum: ",Value,
+                                                                "\nOn",Date," ",Symbol),
                                   line=list(color='rgba(140,81,10, 1)'))}
     
     # Add instantaneous peaks if selected
     if ("MAX" %in% input$annInstStat){
       plot <- plot %>% add_trace(data=annInstData() %>% filter(Parameter==input$annualParam & PEAK_CODE == "MAX"),
                                  x= ~YEAR,y= ~Value, name="Instanteous Maximum",mode = 'markers',
-                                 marker=list(symbol=2,size=8,color='rgba(10,69,140,1)'), text=~paste0(DateTime," ",Symbol))} 
+                                 marker=list(symbol=2,size=8,color='rgba(10,69,140,1)'), 
+                                 hoverinfo= 'text',text=~paste("Instanteous Maximum: ",Value,
+                                                               "\nOn",DateTime," ",Symbol))} 
     if ("MIN" %in% input$annInstStat){
       plot <- plot %>% add_trace(data=annInstData() %>% filter(Parameter==input$annualParam & PEAK_CODE == "MIN"),
                                  x= ~YEAR,y= ~Value, name="Instanteous Minimum",mode = 'markers',
-                                 marker=list(symbol=2,size=8,color='rgba(140,16,10,1)'), text=~paste0(DateTime," ",Symbol))}
+                                 marker=list(symbol=2,size=8,color='rgba(140,16,10,1)'), 
+                                 hoverinfo= 'text',text=~paste("Instanteous Minimum: ",Value,
+                                                               "\nOn",DateTime," ",Symbol))} 
     plot
   })
   
@@ -904,14 +912,16 @@ server <- function(input, output, session) {
     # Summarize each month
     month.data <- daily.data %>% 
       group_by(Parameter,Month) %>% 
-      summarize(Mean=mean(Value, na.rm=TRUE),
-                Maximum=max(Value, na.rm=TRUE),
-                Minimum=min(Value, na.rm=TRUE),
-                Median=median(Value, na.rm=TRUE),
-                Percentile75=quantile(Value,.75, na.rm=TRUE),
-                Percentile25=quantile(Value,.25,na.rm=TRUE),
-                Percentile95=quantile(Value,.95,na.rm=TRUE),
-                Percentile5=quantile(Value,.05,na.rm=TRUE)) %>% 
+      summarize(Mean=round(mean(Value, na.rm=TRUE),3),
+                Maximum=round(max(Value, na.rm=TRUE),3),
+                MaxYear=Year[which.max(Value)],
+                Minimum=round(min(Value, na.rm=TRUE),3),
+                MinYear=Year[which.min(Value)],
+                Median=round(median(Value, na.rm=TRUE),3),
+                Percentile75=round(quantile(Value,.75, na.rm=TRUE),3),
+                Percentile25=round(quantile(Value,.25,na.rm=TRUE),3),
+                Percentile95=round(quantile(Value,.95,na.rm=TRUE),3),
+                Percentile5=round(quantile(Value,.05,na.rm=TRUE),3)) %>% 
       gather(Stat,Value,3:10)
     
     month.data
@@ -931,14 +941,14 @@ server <- function(input, output, session) {
     # Summarize each month
     month.data <- daily.data %>% 
       group_by(Parameter,Year,Month) %>% 
-      summarize(Mean=mean(Value, na.rm=TRUE),
-                Maximum=max(Value, na.rm=TRUE),
-                Minimum=min(Value, na.rm=TRUE),
-                Median=median(Value, na.rm=TRUE),
-                Percentile75=quantile(Value,.75, na.rm=TRUE), 
-                Percentile25=quantile(Value,.25,na.rm=TRUE),
-                Percentile95=quantile(Value,.95,na.rm=TRUE),
-                Percentile5=quantile(Value,.05,na.rm=TRUE)) %>% 
+      summarize(Mean=round(mean(Value, na.rm=TRUE),3),
+                Maximum=round(max(Value, na.rm=TRUE),3),
+                Minimum=round(min(Value, na.rm=TRUE),3),
+                Median=round(median(Value, na.rm=TRUE),3),
+                Percentile75=round(quantile(Value,.75, na.rm=TRUE),3),
+                Percentile25=round(quantile(Value,.25,na.rm=TRUE),3),
+                Percentile95=round(quantile(Value,.95,na.rm=TRUE),3),
+                Percentile5=round(quantile(Value,.05,na.rm=TRUE),3)) %>% 
       gather(Sum_stat,Value,4:11)
     
     month.data
@@ -1023,7 +1033,8 @@ server <- function(input, output, session) {
   #Create and render the monthly plot
   output$monthPlot <- renderPlotly({
     
-    plot.data <- monthData() %>% spread(Stat,Value) %>% filter(Parameter==input$monthParam)
+    plot.data <- monthData() %>% spread(Stat,Value) %>% filter(Parameter==input$monthParam) %>% 
+      mutate(MonthText=month.abb[Month])
     
     #Create the plot
     plot <- plot_ly() %>% 
@@ -1035,38 +1046,63 @@ server <- function(input, output, session) {
     # Add ribbons if checked
     if (input$monthMaxMin){
       plot <- plot %>%  add_ribbons(data=plot.data,x= ~Month,ymin= ~Minimum, ymax= ~Maximum,name="Max-Min Range",
-                                    color=I("lightblue1"))}
+                                    color=I("lightblue1"),hoverinfo= 'text',
+                                    text=~paste0('Maximum: ',Maximum,' (',MaxYear,')',
+                                                 '\nMinimum: ',Minimum,' (',MinYear,')',
+                                                 '\n',MonthText))}
     if (input$month90){
       plot <- plot %>%  add_ribbons(data=plot.data,x= ~Month,ymin= ~Percentile5, ymax= ~Percentile95,name="90% of Flows",
-                                    color=I("lightblue2"))}
+                                    color=I("lightblue2"),hoverinfo= 'text',
+                                    text=~paste('95th Percentile: ',Percentile95,
+                                                '\n5th Percentile: ',Percentile5,
+                                                '\n',MonthText))}
     if (input$month50){
       plot <- plot %>%  add_ribbons(data=plot.data,x= ~Month,ymin= ~Percentile25, ymax= ~Percentile75,name="50% of Flows",
-                                    color=I("lightblue3"))}
+                                    color=I("lightblue3"),hoverinfo= 'text',
+                                    text=~paste('75th Percentile: ',Percentile75,
+                                                '\n25th Percentile: ',Percentile25,
+                                                '\n',MonthText))}
     # Add lines if selected
     if ("Maximum" %in% input$monthStat){
       plot <- plot %>%  add_trace(data=plot.data,x= ~Month,y=~Maximum,name="Maximum",
-                                  mode = 'lines+markers',line=list(dash = 'dot',color='rgba(1,102,94, 1)'))}
+                                  mode = 'lines+markers',line=list(dash = 'dot',color='rgba(1,102,94, 1)'),
+                                  hoverinfo= 'text',text=~paste0('Maximum: ',Maximum,' (',MinYear,')',
+                                                                 '\n',MonthText))}
     if ("Percentile95" %in% input$monthStat){
       plot <- plot %>%  add_trace(data=plot.data,x= ~Month,y=~Percentile95,name="95th Percentile",
-                                  mode = 'lines+markers',line=list(dash = 'dot',color='rgba(53,151,143, 1)'))}
+                                  mode = 'lines+markers',line=list(dash = 'dot',color='rgba(53,151,143, 1)'),
+                                  hoverinfo= 'text',text=~paste0('95th Percentile: ',Percentile95,
+                                                                 '\n',MonthText))}
     if ("Percentile75" %in% input$monthStat){
       plot <- plot %>%  add_trace(data=plot.data,x= ~Month,y=~Percentile75,name="75th Percentile",
-                                  mode = 'lines+markers',line=list(dash = 'dot',color='rgba(128,205,193, 1)'))}
+                                  mode = 'lines+markers',line=list(dash = 'dot',color='rgba(128,205,193, 1)'),
+                                  hoverinfo= 'text',text=~paste0('75th Percentile: ',Percentile75,
+                                                                 '\n',MonthText))}
     if ("Mean" %in% input$monthStat){
       plot <- plot %>%  add_trace(data=plot.data,x= ~Month,y=~Mean,name="Mean",
-                                  mode = 'lines+markers',line=list(color='rgba(61,151,53, 1)'))}
+                                  mode = 'lines+markers',line=list(color='rgba(61,151,53, 1)'),
+                                  hoverinfo= 'text',text=~paste0('Mean: ',Mean,
+                                                                 '\n',MonthText))}
     if ("Median" %in% input$monthStat){
       plot <- plot %>%  add_trace(data=plot.data,x= ~Month,y=~Median,name="Median",
-                                  mode = 'lines+markers',line=list(color='rgba(143,53,151, 1)'))}
+                                  mode = 'lines+markers',line=list(color='rgba(143,53,151, 1)'),
+                                  hoverinfo= 'text',text=~paste0('Median: ',Median,
+                                                                 '\n',MonthText))}
     if ("Percentile25" %in% input$monthStat){
       plot <- plot %>%  add_trace(data=plot.data,x= ~Month,y=~Percentile25,name="25th Percentile",
-                                  mode = 'lines+markers',line=list(dash = 'dot',color='rgba(223,194,125, 1)'))}
+                                  mode = 'lines+markers',line=list(dash = 'dot',color='rgba(223,194,125, 1)'),
+                                  hoverinfo= 'text',text=~paste0('25th Percentile: ',Percentile25,
+                                                                 '\n',MonthText))}
     if ("Percentile5" %in% input$monthStat){
       plot <- plot %>%  add_trace(data=plot.data,x= ~Month,y=~Percentile5,name="5th Percentile",
-                                  mode = 'lines+markers',line=list(dash = 'dot',color='rgba(191,129,45, 1)'))}
+                                  mode = 'lines+markers',line=list(dash = 'dot',color='rgba(191,129,45, 1)'),
+                                  hoverinfo= 'text',text=~paste0('5th Percentile: ',Percentile5,
+                                                                 '\n',MonthText))}
     if ("Minimum" %in% input$monthStat){
       plot <- plot %>%  add_trace(data=plot.data,x= ~Month,y=~Minimum,name="Minimum",
-                                  mode = 'lines+markers',line=list(dash = 'dot',color='rgba(140,81,10, 1)'))}
+                                  mode = 'lines+markers',line=list(dash = 'dot',color='rgba(140,81,10, 1)'),
+                                  hoverinfo= 'text',text=~paste0('Minimum: ',Minimum,' (',MinYear,')',
+                                                                 '\n',MonthText))}
     
     
     # Add data from specific years and specific stats    
@@ -1078,7 +1114,8 @@ server <- function(input, output, session) {
                                                            Sum_stat %in% input$monthYearStat & 
                                                            Year %in% input$monthYear),
                                x= ~Month,y= ~Value, color=~paste0(Year," ",Sum_stat),
-                               mode = 'lines+markers',line=list(width=3))
+                               mode = 'lines+markers',line=list(width=3),
+                               hoverinfo= 'text',text=~paste0(Year," ",Sum_stat,": ",Value))
     
     plot
   })
@@ -1133,7 +1170,7 @@ server <- function(input, output, session) {
     options = list(scrollX = TRUE,
                    scrollY=450,deferRender = TRUE,scroller = TRUE,
                    columnDefs = list(list(className = 'dt-center', targets = "_all"))
-                   )
+    )
   )
   
   #Create and render table output
@@ -1154,7 +1191,7 @@ server <- function(input, output, session) {
                    buttons= list(list(extend='colvis',columns=c(0:5)))
     )
   )
-
+  
   
   #Download data buttons
   output$download.monthData <- downloadHandler(
@@ -1183,15 +1220,18 @@ server <- function(input, output, session) {
     dailysummary <- daily.data %>% 
       group_by(Parameter,Day) %>% 
       filter(Day<366) %>% 
-      summarize(Mean=mean(Value, na.rm=TRUE),
-                Maximum=max(Value, na.rm=TRUE),
-                Minimum=min(Value, na.rm=TRUE),
-                Median=median(Value, na.rm=TRUE),
-                Percentile75=quantile(Value,.75, na.rm=TRUE),
-                Percentile25=quantile(Value,.25,na.rm=TRUE),
-                Percentile95=quantile(Value,.95,na.rm=TRUE),
-                Percentile5=quantile(Value,.05,na.rm=TRUE))%>% 
-      mutate(Date=as.Date(Day,origin = "1899-12-31")) %>% #format date so all in one year for plotting
+      summarize(Mean=round(mean(Value, na.rm=TRUE),3),
+                Maximum=round(max(Value, na.rm=TRUE),3),
+                MaxYear=Year[which.max(Value)],
+                Minimum=round(min(Value, na.rm=TRUE),3),
+                MinYear=Year[which.min(Value)],
+                Median=round(median(Value, na.rm=TRUE),3),
+                Percentile75=round(quantile(Value,.75, na.rm=TRUE),3),
+                Percentile25=round(quantile(Value,.25,na.rm=TRUE),3),
+                Percentile95=round(quantile(Value,.95,na.rm=TRUE),3),
+                Percentile5=round(quantile(Value,.05,na.rm=TRUE),3))%>% 
+      mutate(Date=as.Date(Day,origin = "1899-12-31"),
+             MonthDay=as.character(format(Date,format="%b-%d"))) %>% #format date so all in one year for plotting
       gather(Stat,Value,3:10)
     dailysummary
   })
@@ -1255,7 +1295,7 @@ server <- function(input, output, session) {
   #Create and render the daily summary plot
   output$dailyPlot <- renderPlotly({
     
-    plot.data <- dailySummaryData() %>% spread(Stat,Value)%>% filter(Parameter==input$dailyParam) 
+    plot.data <- dailySummaryData() %>% spread(Stat,Value)%>% filter(Parameter==input$dailyParam)
     
     #create the plot
     plot <- plot_ly() %>% 
@@ -1267,42 +1307,70 @@ server <- function(input, output, session) {
     # Add ribbons if checked
     if (input$dailyMaxMin){
       plot <- plot %>%  add_ribbons(data=plot.data,x= ~Date,ymin= ~Minimum, ymax= ~Maximum,name="Max-Min Range",
-                                    color=I("lightblue1"))}
+                                    color=I("lightblue1"),
+                                    hoverinfo= 'text',text=~paste('Maximum: ',Maximum,' (',MaxYear,')',
+                                                                  '\nMinimum: ',Minimum,' (',MinYear,')',
+                                                                  '\n',MonthDay))}
     if (input$daily90){
       plot <- plot %>%  add_ribbons(data=plot.data,x= ~Date,ymin= ~Percentile95, ymax= ~Percentile5,name="90% of Flows",
-                                    color=I("lightblue2"))}
+                                    color=I("lightblue2"),
+                                    hoverinfo= 'text',text=~paste('95th Percentile: ',Percentile95,
+                                                                  '\n5th Percentile: ',Percentile5,
+                                                                  '\n',MonthDay))}
     if (input$daily50){
       plot <- plot %>%  add_ribbons(data=plot.data,x= ~Date,ymin= ~Percentile25, ymax= ~Percentile75,name="50% of Flows",
-                                    color=I("lightblue3"))}
+                                    color=I("lightblue3"),
+                                    hoverinfo= 'text',text=~paste('75th Percentile: ',Percentile75,
+                                                                  '\n25th Percentile: ',Percentile25,
+                                                                  '\n',MonthDay))}
     
     # Add lines if selected
     if ("Maximum" %in% input$dailyStat){
       plot <- plot %>%  add_lines(data=plot.data,x= ~Date,y=~Maximum,name="Maximum",
-                                  line=list(color='rgba(1,102,94, 1)',width=2))}
+                                  line=list(color='rgba(1,102,94, 1)',width=2),
+                                  hoverinfo= 'text',text=~paste0('Maximum: ',Maximum,' (',MaxYear,')',
+                                                                 '\n',MonthDay))}
     if ("Percentile95" %in% input$dailyStat){
       plot <- plot %>%  add_lines(data=plot.data,x= ~Date,y=~Percentile95,name="95th Percentile",
-                                  line=list(color='rgba(53,151,143, 1)',width=2))}
+                                  line=list(color='rgba(53,151,143, 1)',width=2),
+                                  hoverinfo= 'text',text=~paste0('95th Percentile: ',Percentile95,
+                                                                 '\n',MonthDay))}
     if ("Percentile75" %in% input$dailyStat){
       plot <- plot %>%  add_lines(data=plot.data,x= ~Date,y=~Percentile75,name="75th Percentile",
-                                  line=list(color='rgba(128,205,193, 1)',width=2))}
+                                  line=list(color='rgba(128,205,193, 1)',width=2),
+                                  hoverinfo= 'text',text=~paste0('75th Percentile: ',Percentile75,
+                                                                 '\n',MonthDay))}
     if ("Mean" %in% input$dailyStat){
       plot <- plot %>%  add_lines(data=plot.data,x= ~Date,y=~Mean,name="Mean",
-                                  line=list(color='rgba(61,151,53, 1)',width=2))}
+                                  line=list(color='rgba(61,151,53, 1)',width=2),
+                                  hoverinfo= 'text',text=~paste0('Mean: ',Mean,
+                                                                 '\n',MonthDay))}
     if ("Median" %in% input$dailyStat){
       plot <- plot %>%  add_lines(data=plot.data,x= ~Date,y=~Median,name="Median",
-                                  line=list(color='rgba(143,53,151, 1)',width=2))}
+                                  line=list(color='rgba(143,53,151, 1)',width=2),
+                                  hoverinfo= 'text',text=~paste0('Median: ',Median,
+                                                                 '\n',MonthDay))}
     if ("Percentile25" %in% input$dailyStat){
       plot <- plot %>%  add_lines(data=plot.data,x= ~Date,y=~Percentile25,name="25th Percentile",
-                                  line=list(color='rgba(223,194,125, 1)',width=2))}
+                                  line=list(color='rgba(223,194,125, 1)',width=2),
+                                  hoverinfo= 'text',text=~paste0('25th Percentile: ',Percentile25,
+                                                                 '\n',MonthDay))}
     if ("Percentile5" %in% input$dailyStat){
       plot <- plot %>%  add_lines(data=plot.data,x= ~Date,y=~Percentile5,name="5th Percentile",
-                                  line=list(color='rgba(191,129,45, 1)',width=2))}
+                                  line=list(color='rgba(191,129,45, 1)',width=2),
+                                  hoverinfo= 'text',text=~paste0('5th Percentile: ',Percentile5,
+                                                                 '\n',MonthDay))}
     if ("Minimum" %in% input$dailyStat){
       plot <- plot %>%  add_lines(data=plot.data,x= ~Date,y=~Minimum,name="Minimum",
-                                  line=list(color='rgba(140,81,10, 1)',width=2))}
+                                  line=list(color='rgba(140,81,10, 1)',width=2),
+                                  hoverinfo= 'text',text=~paste0('Minimum: ',Minimum,' (',MinYear,')',
+                                                                 '\n',MonthDay))}
     
     # Add data from specific years
-    plot <- plot %>% add_lines(data=dailyYears() %>% filter(Parameter==input$dailyParam),x= ~Date,y= ~Value, color=~Year)
+    plot <- plot %>% add_lines(data=dailyYears() %>% filter(Parameter==input$dailyParam),
+                               x= ~Date,y= ~Value, color=~Year,
+                               hoverinfo= 'text',text=~paste0(Year,": ",round(Value,3),
+                                                              '\n',as.character(format(Date,format="%b-%d"))))
     
     plot
     
@@ -1419,7 +1487,7 @@ server <- function(input, output, session) {
     paste0("Real-time Data - ",metaData()[2,2]," (",metaData()[1,2],")")
   })
   
-
+  
   
   ## Create histric daily summaries to compare real-time data to (can't use
   ## daily summaries for hsitoric data as that needs to be filtered by years)
@@ -1427,22 +1495,22 @@ server <- function(input, output, session) {
     
     daily.data <- dailyData()
     daily.data$Day <- as.integer(format(daily.data$Date,'%j'))
-
+    
     #Calculate summary stats
     dlydata <- daily.data %>% 
       group_by(Parameter,Day) %>% 
       filter(Day<366) %>% 
-      summarize(Mean=mean(Value, na.rm=TRUE),
-                Maximum=max(Value, na.rm=TRUE),
-                Minimum=min(Value, na.rm=TRUE),
-                Median=median(Value, na.rm=TRUE),
-                Percentile75=quantile(Value,.75, na.rm=TRUE),
-                Percentile25=quantile(Value,.25,na.rm=TRUE),
-                Percentile95=quantile(Value,.95,na.rm=TRUE),
-                Percentile5=quantile(Value,.05,na.rm=TRUE))
+      summarize(Mean=round(mean(Value, na.rm=TRUE),3),
+                Maximum=round(max(Value, na.rm=TRUE),3),
+                Minimum=round(min(Value, na.rm=TRUE),3),
+                Median=round(median(Value, na.rm=TRUE),3),
+                Percentile75=round(quantile(Value,.75, na.rm=TRUE),3),
+                Percentile25=round(quantile(Value,.25,na.rm=TRUE),3),
+                Percentile95=round(quantile(Value,.95,na.rm=TRUE),3),
+                Percentile5=round(quantile(Value,.05,na.rm=TRUE),3))
     
-    rtdata <- realtimeData() %>% mutate(Day=as.integer(format(DateTime, format="%j")))
-    #rtdata <- realtime.data %>% mutate(Day=as.integer(format(DateTime, format="%j")))
+    rtdata <- realtimeData() %>% mutate(Day=as.integer(format(DateTime, format="%j")),
+                                        MonthDay=as.character(format(DateTime,format="%b-%d")))
     data <- merge(rtdata,dlydata, by=c("Parameter","Day"),all.x = TRUE)
     data
   })
@@ -1453,7 +1521,7 @@ server <- function(input, output, session) {
                 "Select historic data paramater to display",
                 choices =as.list(input$rtParam))
   })
-
+  
   #Create and render the real time plot
   output$rtplot <- renderPlotly({
     
@@ -1462,77 +1530,93 @@ server <- function(input, output, session) {
     ## Add historical daily data layers behind real-time data if select
     if (input$rtHistoric & (length(input$rtParam)==1 | input$rtHistParam=="FLOW")){
       if ("Max-Min Range" %in% input$rtHistStats){
-        plot <- plot %>%  add_ribbons(data=rtHistoricData() %>% filter(Parameter==input$rtHistParam)
-                                      ,x= ~DateTime,ymin= ~Minimum, ymax= ~Maximum,name="Historic Max-Min Range",
+        plot <- plot %>%  add_ribbons(data=rtHistoricData() %>% filter(Parameter==input$rtHistParam),
+                                      x= ~DateTime,ymin= ~Minimum, ymax= ~Maximum,name="Historic Max-Min Range",
+                                      hoverinfo= 'text',text=~paste('Maximum: ',Maximum,'\nMinimum: ',Minimum,
+                                                                    '\n',MonthDay), 
                                       color=I("lightblue1"))}
       if ("5-95 Percentile Range" %in% input$rtHistStats){
         plot <- plot %>%  add_ribbons(data=rtHistoricData() %>% filter(Parameter==input$rtHistParam),
                                       x= ~DateTime,ymin= ~Percentile5, ymax= ~Percentile95,name="Historic 5-95 Percentile Range",
+                                      hoverinfo= 'text',text=~paste('95th Percentile: ',Percentile95,'\n5th Percentile: ',Percentile5,
+                                                                    '\n',MonthDay),
                                       color=I("lightblue2"))}
       if ("25-75 Percentile Range" %in% input$rtHistStats){
         plot <- plot %>%  add_ribbons(data=rtHistoricData() %>% filter(Parameter==input$rtHistParam),
                                       x= ~DateTime,ymin= ~Percentile25, ymax= ~Percentile75,name="Historic 25-75 Percentile Range",
+                                      hoverinfo= 'text',text=~paste('75th Percentile: ',Percentile75,'\n25th Percentile: ',Percentile25,
+                                                                    '\n',MonthDay),
                                       color=I("lightblue3"))}
       if ("Mean" %in% input$rtHistStats){
         plot <- plot %>%  add_lines(data=rtHistoricData() %>% filter(Parameter==input$rtHistParam),
                                     x= ~DateTime,y=~Mean,name="Historic Daily Mean",
-                                    line=list(color='rgba(61,151,53, 1)',width=2))}
+                                    hoverinfo= 'text',text=~paste('Mean: ',Mean,'\n',MonthDay),
+                                    line=list(color='rgba(61,151,53, 1)'))}
       if ("Median" %in% input$rtHistStats){
         plot <- plot %>%  add_lines(data=rtHistoricData() %>% filter(Parameter==input$rtHistParam),
                                     x= ~DateTime,y=~Median,name="Historic Daily Median",
-                                    line=list(color='rgba(143,53,151, 1)',width=2))}
+                                    hoverinfo= 'text',text=~paste('Median: ',Median,'\n',MonthDay),
+                                    line=list(color='rgba(143,53,151, 1)'))}
     } else if (input$rtHistoric & length(input$rtParam)==2 & input$rtHistParam=="LEVEL"){
       if ("Max-Min Range" %in% input$rtHistStats){
         plot <- plot %>%  add_ribbons(data=rtHistoricData() %>% filter(Parameter==input$rtHistParam)
                                       ,x= ~DateTime,ymin= ~Minimum, ymax= ~Maximum,name="Historic Max-Min Range",
+                                      hoverinfo= 'text',text=~paste('Maximum: ',Maximum,'\nMinimum: ',Minimum,
+                                                                    '\n',MonthDay),
                                       color=I("lightblue1"), yaxis = "y2")}
       if ("5-95 Percentile Range" %in% input$rtHistStats){
         plot <- plot %>%  add_ribbons(data=rtHistoricData() %>% filter(Parameter==input$rtHistParam),
                                       x= ~DateTime,ymin= ~Percentile5, ymax= ~Percentile95,name="Historic 5-95 Percentile Range",
+                                      hoverinfo= 'text',text=~paste('95th Percentile: ',Percentile95,'\n5th Percentile: ',Percentile5,
+                                                                    '\n',MonthDay),
                                       color=I("lightblue2"), yaxis = "y2")}
       if ("25-75 Percentile Range" %in% input$rtHistStats){
         plot <- plot %>%  add_ribbons(data=rtHistoricData() %>% filter(Parameter==input$rtHistParam),
                                       x= ~DateTime,ymin= ~Percentile25, ymax= ~Percentile75,name="Historic 25-75 Percentile Range",
+                                      hoverinfo= 'text',text=~paste('75th Percentile: ',Percentile75,'\n25th Percentile: ',Percentile25,
+                                                                    '\n',MonthDay),
                                       color=I("lightblue3"), yaxis = "y2")}
       if ("Mean" %in% input$rtHistStats){
         plot <- plot %>%  add_lines(data=rtHistoricData() %>% filter(Parameter==input$rtHistParam),
                                     x= ~DateTime,y=~Mean,name="Historic Daily Mean",
-                                    line=list(color='rgba(61,151,53, 1)',width=2), yaxis = "y2")}
+                                    # hoverinfo= 'text',text=~paste('Mean: ',Mean,'\nDay: ',MonthDay),
+                                    line=list(color='rgba(61,151,53, 1)'), yaxis = "y2")}
       if ("Median" %in% input$rtHistStats){
         plot <- plot %>%  add_lines(data=rtHistoricData() %>% filter(Parameter==input$rtHistParam),
                                     x= ~DateTime,y=~Median,name="Historic Daily Median",
-                                    line=list(color='rgba(143,53,151, 1)',width=2), yaxis = "y2")}
+                                    # hoverinfo= 'text',text=~paste('Median: ',Median,'\nDay: ',MonthDay),
+                                    line=list(color='rgba(143,53,151, 1)'), yaxis = "y2")}
     }
     
     # Add real-time data layers
     if (length(input$rtParam)==2) { #If both flow and water level
       plot <- plot %>%
-        add_lines(data=realtimeData() %>% filter(Parameter=="FLOW"),x= ~DateTime,y= ~Value, name="Inst. Discharge",
-                  hoverinfo= 'text',text=~paste('Inst. Discharge: ',Value,"cms",'\nDate/Time: ',DateTime),
+        add_lines(data=realtimeData() %>% filter(Parameter=="FLOW"),x= ~DateTime,y= ~Value, name="Instantaneous Discharge",
+                  hoverinfo= 'text',text=~paste('Inst. Discharge: ',Value,"cms",'\n',DateTime),
                   line=list(color='rgba(31, 119, 180, 1)')) %>% 
-        add_lines(data=realtimeData() %>% filter(Parameter=="LEVEL"),x= ~DateTime,y= ~Value, name="Inst. Water Level",
-                  hoverinfo= 'text',text=~paste('Inst. Water Level: ',Value,"m",'\nDate/Time: ',DateTime), 
+        add_lines(data=realtimeData() %>% filter(Parameter=="LEVEL"),x= ~DateTime,y= ~Value, name="Instantaneous Water Level",
+                  hoverinfo= 'text',text=~paste('Inst. Water Level: ',Value,"m",'\n',DateTime), 
                   line=list(color='rgba(255, 127, 14, 1)'),yaxis = "y2") %>% 
         layout(xaxis=list(title="Date"),
                yaxis=rtplot.y(),
                yaxis2 = list(overlaying = "y",side = "right",title = "Water Level (m)"))}
     else if (length(input$rtParam)==1 & input$rtParam=="FLOW") { #if just flow data
       plot <- plot %>%
-        add_lines(data=realtimeData() %>% filter(Parameter=="FLOW"),x= ~DateTime,y= ~Value, name="Inst. Discharge",
-                  hoverinfo= 'text',text=~paste('Inst. Discharge: ',Value,"cms",'\nDate/Time: ',DateTime),
+        add_lines(data=realtimeData() %>% filter(Parameter=="FLOW"),x= ~DateTime,y= ~Value, name="Instantaneous Discharge",
+                  hoverinfo= 'text',text=~paste('Inst. Discharge: ',Value,"cms",'\n',DateTime),
                   line=list(color='rgba(31, 119, 180, 1)')) %>% 
         layout(xaxis=list(title="Date"),
                yaxis=rtplot.y(),
                showlegend = TRUE)} 
     else if (length(input$rtParam)==1 & input$rtParam=="LEVEL") { # if just level data
       plot <- plot %>%
-        add_lines(data=realtimeData() %>% filter(Parameter=="LEVEL"),x= ~DateTime,y= ~Value, name="Inst. Water Level",
+        add_lines(data=realtimeData() %>% filter(Parameter=="LEVEL"),x= ~DateTime,y= ~Value, name="Instantaneous Water Level",
                   hoverinfo= 'text',text=~paste('Inst. Water Level: ',Value,"m",'\nDate/Time: ',DateTime),
                   line=list(color='rgba(255, 127, 14, 1)')) %>% 
         layout(xaxis=list(title="Date"),
                yaxis=list(title = "Water Level (m)"),
                showlegend = TRUE)} 
-
+    
     plot
   })
   
@@ -1540,8 +1624,8 @@ server <- function(input, output, session) {
   rtTableOutput <- reactive({
     data <- realtimeData() %>% select(DateTime,Parameter,Value) %>% 
       mutate(DateTime=format.Date(DateTime, method = 'toISOString'))
-
-  
+    
+    
     if ("FLOW" %in% data$Parameter & "LEVEL" %in% data$Parameter) { # both Q and H
       data.flow <- data %>% filter(Parameter=="FLOW") %>% 
         mutate("Flow (cms)"=Value)%>%
@@ -1561,7 +1645,7 @@ server <- function(input, output, session) {
     }
     table.data
   })
-
+  
   #Create and render table output
   output$realtimeTable <- DT::renderDataTable(
     rtTableOutput() %>% 
