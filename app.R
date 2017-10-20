@@ -323,12 +323,26 @@ ui <- dashboardPage(
                                  tabPanel("Graph",
                                           fluidRow(column(12,plotlyOutput('rtplot'))),
                                           br(),br(),
-                                          fluidRow(box(width =4,title = "Graph Options",status = "primary",
-                                                       fluidRow(column(12,hr(),
+                                          fluidRow(box(width =8,title = "Graph Options",status = "primary",
+                                                       fluidRow(column(5,hr(),
                                                                        uiOutput("rtParam"),
                                                                        checkboxInput("rtlog", 
                                                                                      label = "Log scale on 'Discharge' axis", 
-                                                                                     value= FALSE)))))),
+                                                                                     value= FALSE)),
+                                                                column(1),
+                                                                column(6,hr(),
+                                                                       checkboxInput("rtHistoric","Display historic daily data",value= FALSE),
+                                                                       uiOutput("rtHistParam"),
+                                                                       checkboxGroupInput("rtHistStats",
+                                                                                          "Display the historic daily statistics:",
+                                                                                          choices = list("Max-Min Range",
+                                                                                                         "5-95 Percentile Range",
+                                                                                                         "25-75 Percentile Range",
+                                                                                                         "Mean","Median"),
+                                                                                          selected = list("Max-Min Range",
+                                                                                                          "5-95 Percentile Range",
+                                                                                                          "25-75 Percentile Range"))
+                                                                       ))))),
                                  tabPanel("Table",
                                           fluidRow(column(width=6,
                                                           (DT::dataTableOutput("realtimeTable"))))))))),
@@ -439,7 +453,8 @@ server <- function(input, output, session) {
                        data = filter(stations, STATION_NUMBER %in% values$station),
                        lng = ~LONGITUDE,lat = ~LATITUDE, 
                        color = "red", radius = 7) %>%
-      addCircleMarkers(data= stations, lng = ~LONGITUDE, lat = ~LATITUDE, layerId = ~STATION_NUMBER, color = "blue", radius = 2,
+      addCircleMarkers(data= stations, lng = ~LONGITUDE, lat = ~LATITUDE, layerId = ~STATION_NUMBER, 
+                       color = "blue", radius = 2,
                        label = ~paste0(STATION_NAME, " (",STATION_NUMBER,") - ",HYD_STATUS))
     
   })
@@ -625,31 +640,36 @@ server <- function(input, output, session) {
     
     if (length(input$ltParam)==2) { # Plot if both flow and water level
       plot <-  plot_ly() %>%
-        add_lines(data=plot.data %>% filter(Parameter=="FLOW"),x= ~Date,y= ~Value, name="Discharge",
-                  text=~paste('Discharge: ',Value,"cms",Symbol,'\nDate: ',Date)) %>%
-        add_lines(data=plot.data %>% filter(Parameter=="LEVEL"),x= ~Date,y= ~Value, name="Water Level", yaxis = "y2",
-                  text=~paste('Water Level: ',Value,"m",Symbol,'\nDate: ',Date)) %>%
+        add_lines(data=plot.data %>% filter(Parameter=="FLOW"),x= ~Date,y= ~Value, name="Discharge",hoverinfo= 'text',
+                  text=~paste('Discharge: ',Value,"cms",Symbol,'\nDate: ',Date),
+                  line=list(color='rgba(31, 119, 180, 1)')) %>%
+        add_lines(data=plot.data %>% filter(Parameter=="LEVEL"),x= ~Date,y= ~Value, name="Water Level",hoverinfo= 'text',
+                  text=~paste('Water Level: ',Value,"m",Symbol,'\nDate: ',Date), 
+                  line=list(color='rgba(255, 127, 14, 1)'), yaxis = "y2") %>%
         layout(xaxis=list(title="Date"),
                yaxis=ltplot.y(),
                yaxis2 = list(overlaying = "y",side = "right",title = "Water Level (m)"))} 
     else if (length(input$ltParam)==1 & input$ltParam=="FLOW") { # Plot if just flow
       plot <- plot_ly() %>%
         add_lines(data=plot.data %>% filter(Parameter=="FLOW"),x= ~Date,y= ~Value, name="Discharge",hoverinfo= 'text',
-                  text=~paste('Discharge: ',Value,"cms",Symbol,'\nDate: ',Date)) %>%
+                  text=~paste('Discharge: ',Value,"cms",Symbol,'\nDate: ',Date),
+                  line=list(color='rgba(31, 119, 180, 1)')) %>%
         layout(xaxis=list(title="Date"),
                yaxis=ltplot.y(),
                showlegend = TRUE)}
     else if (length(input$ltParam)==1 & input$ltParam=="LEVEL") { # Plot if just water level
       plot <-plot_ly() %>%
-        add_lines(data=plot.data %>% filter(Parameter=="LEVEL"),x= ~Date,y= ~Value, name="Water Level",
-                  text=~paste('Water Level: ',Value,"m",Symbol,'\nDate: ',Date)) %>%
+        add_lines(data=plot.data %>% filter(Parameter=="LEVEL"),x= ~Date,y= ~Value, name="Water Level",hoverinfo= 'text',
+                  text=~paste('Water Level: ',Value,"m",Symbol,'\nDate: ',Date), 
+                  line=list(color='rgba(255, 127, 14, 1)')) %>%
         layout(xaxis=list(title="Date"),
                yaxis=list(title = "Water Level (m)"),
                showlegend = TRUE)}
     
     # Add data symbol to plot if selected
     if (length(input$paramSymbol)>0) {
-      plot <- plot %>% add_markers(data=plot.data %>% filter(Parameter %in% input$paramSymbol),x= ~Date,y= 0, color= ~Symbol)}
+      plot <- plot %>% add_markers(data=plot.data %>% filter(Parameter %in% input$paramSymbol),x= ~Date,y= 0, 
+                                   color= ~Symbol)}
     
     plot
   })
@@ -1054,9 +1074,11 @@ server <- function(input, output, session) {
                                            Sum_stat=replace(Sum_stat, Sum_stat=="Percentile75", "75th Percentile"),
                                            Sum_stat=replace(Sum_stat, Sum_stat=="Percentile5", "5th Percentile"),
                                            Sum_stat=replace(Sum_stat, Sum_stat=="Percentile95", "95th Percentile"))
-    plot <- plot %>% add_trace(data=year.data %>% 
-                                 filter(Parameter==input$monthParam & Sum_stat %in% input$monthYearStat & Year %in% input$monthYear),
-                               x= ~Month,y= ~Value, color=~paste0(Year," ",Sum_stat),mode = 'lines+markers',line=list(width=3))
+    plot <- plot %>% add_trace(data=year.data %>% filter(Parameter==input$monthParam & 
+                                                           Sum_stat %in% input$monthYearStat & 
+                                                           Year %in% input$monthYear),
+                               x= ~Month,y= ~Value, color=~paste0(Year," ",Sum_stat),
+                               mode = 'lines+markers',line=list(width=3))
     
     plot
   })
@@ -1155,9 +1177,7 @@ server <- function(input, output, session) {
     daily.data$Year <- as.numeric(format(daily.data$Date,'%Y'))
     daily.data$Day <- as.integer(format(daily.data$Date,'%j'))
     
-    # Filter data for select years
-    daily.data <- daily.data %>% 
-      filter(Year >= input$histYears[1] & Year <= input$histYears[2])
+    daily.data <- daily.data %>%filter(Year >= input$histYears[1] & Year <= input$histYears[2])
     
     #Calculate summary stats
     dailysummary <- daily.data %>% 
@@ -1235,7 +1255,7 @@ server <- function(input, output, session) {
   #Create and render the daily summary plot
   output$dailyPlot <- renderPlotly({
     
-    plot.data <- dailySummaryData() %>% spread(Stat,Value)%>% filter(Parameter==input$dailyParam)
+    plot.data <- dailySummaryData() %>% spread(Stat,Value)%>% filter(Parameter==input$dailyParam) 
     
     #create the plot
     plot <- plot_ly() %>% 
@@ -1399,33 +1419,124 @@ server <- function(input, output, session) {
     paste0("Real-time Data - ",metaData()[2,2]," (",metaData()[1,2],")")
   })
   
+
+  
+  ## Create histric daily summaries to compare real-time data to (can't use
+  ## daily summaries for hsitoric data as that needs to be filtered by years)
+  rtHistoricData <- reactive({
+    
+    daily.data <- dailyData()
+    daily.data$Day <- as.integer(format(daily.data$Date,'%j'))
+
+    #Calculate summary stats
+    dlydata <- daily.data %>% 
+      group_by(Parameter,Day) %>% 
+      filter(Day<366) %>% 
+      summarize(Mean=mean(Value, na.rm=TRUE),
+                Maximum=max(Value, na.rm=TRUE),
+                Minimum=min(Value, na.rm=TRUE),
+                Median=median(Value, na.rm=TRUE),
+                Percentile75=quantile(Value,.75, na.rm=TRUE),
+                Percentile25=quantile(Value,.25,na.rm=TRUE),
+                Percentile95=quantile(Value,.95,na.rm=TRUE),
+                Percentile5=quantile(Value,.05,na.rm=TRUE))
+    
+    rtdata <- realtimeData() %>% mutate(Day=as.integer(format(DateTime, format="%j")))
+    #rtdata <- realtime.data %>% mutate(Day=as.integer(format(DateTime, format="%j")))
+    data <- merge(rtdata,dlydata, by=c("Parameter","Day"),all.x = TRUE)
+    data
+  })
+  
+  # Create widget to choose parameter historical daily stats
+  output$rtHistParam <- renderUI({
+    selectInput("rtHistParam",
+                "Select historic data paramater to display",
+                choices =as.list(input$rtParam))
+  })
+
   #Create and render the real time plot
   output$rtplot <- renderPlotly({
     
+    plot <- plot_ly()
+    
+    ## Add historical daily data layers behind real-time data if select
+    if (input$rtHistoric & (length(input$rtParam)==1 | input$rtHistParam=="FLOW")){
+      if ("Max-Min Range" %in% input$rtHistStats){
+        plot <- plot %>%  add_ribbons(data=rtHistoricData() %>% filter(Parameter==input$rtHistParam)
+                                      ,x= ~DateTime,ymin= ~Minimum, ymax= ~Maximum,name="Historic Max-Min Range",
+                                      color=I("lightblue1"))}
+      if ("5-95 Percentile Range" %in% input$rtHistStats){
+        plot <- plot %>%  add_ribbons(data=rtHistoricData() %>% filter(Parameter==input$rtHistParam),
+                                      x= ~DateTime,ymin= ~Percentile5, ymax= ~Percentile95,name="Historic 5-95 Percentile Range",
+                                      color=I("lightblue2"))}
+      if ("25-75 Percentile Range" %in% input$rtHistStats){
+        plot <- plot %>%  add_ribbons(data=rtHistoricData() %>% filter(Parameter==input$rtHistParam),
+                                      x= ~DateTime,ymin= ~Percentile25, ymax= ~Percentile75,name="Historic 25-75 Percentile Range",
+                                      color=I("lightblue3"))}
+      if ("Mean" %in% input$rtHistStats){
+        plot <- plot %>%  add_lines(data=rtHistoricData() %>% filter(Parameter==input$rtHistParam),
+                                    x= ~DateTime,y=~Mean,name="Historic Daily Mean",
+                                    line=list(color='rgba(61,151,53, 1)',width=2))}
+      if ("Median" %in% input$rtHistStats){
+        plot <- plot %>%  add_lines(data=rtHistoricData() %>% filter(Parameter==input$rtHistParam),
+                                    x= ~DateTime,y=~Median,name="Historic Daily Median",
+                                    line=list(color='rgba(143,53,151, 1)',width=2))}
+    } else if (input$rtHistoric & length(input$rtParam)==2 & input$rtHistParam=="LEVEL"){
+      if ("Max-Min Range" %in% input$rtHistStats){
+        plot <- plot %>%  add_ribbons(data=rtHistoricData() %>% filter(Parameter==input$rtHistParam)
+                                      ,x= ~DateTime,ymin= ~Minimum, ymax= ~Maximum,name="Historic Max-Min Range",
+                                      color=I("lightblue1"), yaxis = "y2")}
+      if ("5-95 Percentile Range" %in% input$rtHistStats){
+        plot <- plot %>%  add_ribbons(data=rtHistoricData() %>% filter(Parameter==input$rtHistParam),
+                                      x= ~DateTime,ymin= ~Percentile5, ymax= ~Percentile95,name="Historic 5-95 Percentile Range",
+                                      color=I("lightblue2"), yaxis = "y2")}
+      if ("25-75 Percentile Range" %in% input$rtHistStats){
+        plot <- plot %>%  add_ribbons(data=rtHistoricData() %>% filter(Parameter==input$rtHistParam),
+                                      x= ~DateTime,ymin= ~Percentile25, ymax= ~Percentile75,name="Historic 25-75 Percentile Range",
+                                      color=I("lightblue3"), yaxis = "y2")}
+      if ("Mean" %in% input$rtHistStats){
+        plot <- plot %>%  add_lines(data=rtHistoricData() %>% filter(Parameter==input$rtHistParam),
+                                    x= ~DateTime,y=~Mean,name="Historic Daily Mean",
+                                    line=list(color='rgba(61,151,53, 1)',width=2), yaxis = "y2")}
+      if ("Median" %in% input$rtHistStats){
+        plot <- plot %>%  add_lines(data=rtHistoricData() %>% filter(Parameter==input$rtHistParam),
+                                    x= ~DateTime,y=~Median,name="Historic Daily Median",
+                                    line=list(color='rgba(143,53,151, 1)',width=2), yaxis = "y2")}
+    }
+    
+    # Add real-time data layers
     if (length(input$rtParam)==2) { #If both flow and water level
-      plot <- plot_ly() %>% 
-        add_lines(data=realtimeData() %>% filter(Parameter=="FLOW"),x= ~DateTime,y= ~Value, name="Discharge") %>% 
-        add_lines(data=realtimeData() %>% filter(Parameter=="LEVEL"),x= ~DateTime,y= ~Value, name="Water Level", yaxis = "y2") %>% 
+      plot <- plot %>%
+        add_lines(data=realtimeData() %>% filter(Parameter=="FLOW"),x= ~DateTime,y= ~Value, name="Inst. Discharge",
+                  hoverinfo= 'text',text=~paste('Inst. Discharge: ',Value,"cms",'\nDate/Time: ',DateTime),
+                  line=list(color='rgba(31, 119, 180, 1)')) %>% 
+        add_lines(data=realtimeData() %>% filter(Parameter=="LEVEL"),x= ~DateTime,y= ~Value, name="Inst. Water Level",
+                  hoverinfo= 'text',text=~paste('Inst. Water Level: ',Value,"m",'\nDate/Time: ',DateTime), 
+                  line=list(color='rgba(255, 127, 14, 1)'),yaxis = "y2") %>% 
         layout(xaxis=list(title="Date"),
                yaxis=rtplot.y(),
                yaxis2 = list(overlaying = "y",side = "right",title = "Water Level (m)"))}
     else if (length(input$rtParam)==1 & input$rtParam=="FLOW") { #if just flow data
-      plot <- plot_ly() %>% 
-        add_lines(data=realtimeData() %>% filter(Parameter=="FLOW"),x= ~DateTime,y= ~Value, name="Discharge") %>% 
+      plot <- plot %>%
+        add_lines(data=realtimeData() %>% filter(Parameter=="FLOW"),x= ~DateTime,y= ~Value, name="Inst. Discharge",
+                  hoverinfo= 'text',text=~paste('Inst. Discharge: ',Value,"cms",'\nDate/Time: ',DateTime),
+                  line=list(color='rgba(31, 119, 180, 1)')) %>% 
         layout(xaxis=list(title="Date"),
                yaxis=rtplot.y(),
                showlegend = TRUE)} 
     else if (length(input$rtParam)==1 & input$rtParam=="LEVEL") { # if just level data
-      plot <- plot_ly() %>% 
-        add_lines(data=realtimeData() %>% filter(Parameter=="LEVEL"),x= ~DateTime,y= ~Value, name="Water Level") %>% 
+      plot <- plot %>%
+        add_lines(data=realtimeData() %>% filter(Parameter=="LEVEL"),x= ~DateTime,y= ~Value, name="Inst. Water Level",
+                  hoverinfo= 'text',text=~paste('Inst. Water Level: ',Value,"m",'\nDate/Time: ',DateTime),
+                  line=list(color='rgba(255, 127, 14, 1)')) %>% 
         layout(xaxis=list(title="Date"),
                yaxis=list(title = "Water Level (m)"),
                showlegend = TRUE)} 
-    
+
     plot
   })
   
-  
+  # Create table to display
   rtTableOutput <- reactive({
     data <- realtimeData() %>% select(DateTime,Parameter,Value) %>% 
       mutate(DateTime=format.Date(DateTime, method = 'toISOString'))
