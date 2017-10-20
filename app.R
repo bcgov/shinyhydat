@@ -33,8 +33,12 @@ stations <- STATIONS(PROV_TERR_STATE_LOC = "BC") %>%  #c("AB","BC","SK","MB","ON
   left_join(STN_REGULATION(), by="STATION_NUMBER") %>% 
   select(STATION_NUMBER,STATION_NAME,PROV_TERR_STATE_LOC,HYD_STATUS,LATITUDE,LONGITUDE,DRAINAGE_AREA_GROSS,RHBN,
          REAL_TIME,REGULATED,CONTRIBUTOR,OPERATOR,REGIONAL_OFFICE,DATUM)
-stations.list <- as.list(stations$STATION_NUMBER)
+station.parameters <- STN_DATA_RANGE() %>% filter(DATA_TYPE=="Q"|DATA_TYPE=="H")  %>% 
+  select(STATION_NUMBER,DATA_TYPE) %>% spread(DATA_TYPE,DATA_TYPE) %>% 
+  mutate(PARAMETER=ifelse(is.na(H),"FLOW",ifelse(is.na(Q),"LEVEL",paste("FLOW AND LEVEL"))))
+stations <- left_join(stations,station.parameters %>% select(STATION_NUMBER,PARAMETER),by="STATION_NUMBER") 
 
+stations.list <- as.list(stations$STATION_NUMBER)
 
 
 #######################################################################################
@@ -385,10 +389,10 @@ server <- function(input, output, session) {
     
     stn.meta.HYDAT <- stations %>% filter(STATION_NUMBER==stations.list)
     
-    stn.info <-stn.meta.HYDAT[,c(1:4,7:13)] %>% 
+    stn.info <-stn.meta.HYDAT[,c(1:3,15,4,7:13)] %>% 
       mutate(DRAINAGE_AREA_GROSS=round(DRAINAGE_AREA_GROSS,2)) %>% 
       rename("Station Number"=STATION_NUMBER,"Station Name" =STATION_NAME,"Prov/ Terr/ State"=PROV_TERR_STATE_LOC,
-             "Station Status"=HYD_STATUS, "Drainage Area (sq km)"=DRAINAGE_AREA_GROSS,"Reference (RHBN)"=RHBN,
+             "Station Status"=HYD_STATUS,"Parameter"=PARAMETER, "Drainage Area (sq km)"=DRAINAGE_AREA_GROSS,"Reference (RHBN)"=RHBN,
              "Real-Time"=REAL_TIME,"Contributor"=CONTRIBUTOR,"Operator"=OPERATOR,"Regional Office"=REGIONAL_OFFICE,
              "Regulation"=REGULATED)
   }) 
@@ -510,11 +514,12 @@ server <- function(input, output, session) {
              DRAINAGE_AREA_GROSS=round(DRAINAGE_AREA_GROSS,2),
              LATITUDE=round(LATITUDE,6),
              LONGITUDE=round(LONGITUDE,6)) %>% 
+      select(c(1:3,15,5,6,4,8:10,7,11:14,16:17)) %>% 
       rename("Station Number"=STATION_NUMBER,"Station Name" =STATION_NAME,"Prov/Terr/State"=PROV_TERR_STATE_LOC,
-             "Station Status"=HYD_STATUS, "Latitude"=LATITUDE,"Longitude"=LONGITUDE,"Drainage Area (sq km)"=DRAINAGE_AREA_GROSS,
+             "Station Status"=HYD_STATUS,"Parameter"=PARAMETER, "Latitude"=LATITUDE,"Longitude"=LONGITUDE,"Drainage Area (sq km)"=DRAINAGE_AREA_GROSS,
              "Reference (RHBN)"=RHBN,"Real-Time"=REAL_TIME,"Regulation"=REGULATED,"Regional Office"=REGIONAL_OFFICE,
              "Contributor"=CONTRIBUTOR,"Operator"=OPERATOR,"Datum"=DATUM) %>% 
-      gather("header","content",1:16)
+      gather("header","content",1:17)
     
     stn.info[is.na(stn.info)] <- ""
     stn.info
@@ -543,22 +548,26 @@ server <- function(input, output, session) {
   ###################################################################################
   
   # Extract daily discharge and water level data from HYDAT (used for long-term data,and monthly and daily statistics)
-  dailyData <- reactive({
-    # check which data to extract
-    check <- STN_DATA_RANGE(STATION_NUMBER=values$station) %>% filter(DATA_TYPE=="Q"|DATA_TYPE=="H")
-    
+  dailyDataHYDAT <- reactive({
+
     # extract flow or water level data depending on what is available
-    if ("Q" %in% check$DATA_TYPE & "H" %in% check$DATA_TYPE) { # both Q and H
+    if (metaData()[4,2]=="FLOW AND LEVEL") { # both Q and H
       daily.flow.HYDAT <- DLY_FLOWS(STATION_NUMBER=values$station)
       daily.levels.HYDAT <- DLY_LEVELS(STATION_NUMBER=values$station)
       daily.data <- rbind(daily.flow.HYDAT[,c(2:5)],daily.levels.HYDAT[,c(2:5)])
-    } else if ("Q" %in% check$DATA_TYPE & !("H" %in% check$DATA_TYPE)) { # just Q
+    } else if (metaData()[4,2]=="FLOW") { # just Q
       daily.flow.HYDAT <- DLY_FLOWS(STATION_NUMBER=values$station)
       daily.data <- daily.flow.HYDAT[,c(2:5)]
-    } else if (!("Q" %in% check$DATA_TYPE) & "H" %in% check$DATA_TYPE) { # just H
+    } else if (metaData()[4,2]=="LEVEL") { # just H
       daily.levels.HYDAT <- DLY_LEVELS(STATION_NUMBER=values$station)
       daily.data <- daily.levels.HYDAT[,c(2:5)]
     }
+    daily.data
+  })
+  
+  dailyData <- reactive({
+    
+    daily.data <- dailyDataHYDAT()
     
     # fill in any date data gaps (including completing the first and last years of data)
     daily.data.temp <- as.data.frame(daily.data[0,])
@@ -681,9 +690,7 @@ server <- function(input, output, session) {
                                    Month=as.character(format(Date,'%B'))) %>%
       select(Date,Year,Month,Parameter,Value,Symbol)
     
-    check <- STN_DATA_RANGE(STATION_NUMBER=values$station) %>% filter(DATA_TYPE=="Q"|DATA_TYPE=="H")
-    
-    if ("Q" %in% check$DATA_TYPE & "H" %in% check$DATA_TYPE) { # both Q and H
+    if (metaData()[4,2]=="FLOW AND LEVEL") { # both Q and H
       data.flow <- data %>% filter(Parameter=="FLOW") %>% 
         mutate("Flow (cms)"=Value,"Flow Symbol"=Symbol)%>%
         select(-Parameter,-Value,-Symbol)
@@ -691,11 +698,11 @@ server <- function(input, output, session) {
         mutate("Water Level (m)"=Value,"Water Level Symbol"=Symbol)%>%
         select(-Parameter,-Value,-Symbol)
       table.data <- merge(data.flow,data.level,by=c("Date","Year","Month"),all=TRUE) 
-    } else if ("Q" %in% check$DATA_TYPE & !("H" %in% check$DATA_TYPE)) { # just Q
+    } else if (metaData()[4,2]=="FLOW") { # just Q
       table.data <- data %>% 
         rename("Flow (cms)"=Value,"Flow Symbol"=Symbol) %>%
         select(-Parameter)
-    } else if (!("Q" %in% check$DATA_TYPE) & "H" %in% check$DATA_TYPE) { # just H
+    } else if (metaData()[4,2]=="LEVEL") { # just H
       table.data <- data %>% 
         rename("Water Level (m)"=Value,"Water Level Symbol"=Symbol) %>%
         select(-Parameter)
@@ -712,11 +719,29 @@ server <- function(input, output, session) {
                    columnDefs = list(list(className = 'dt-center', targets = 0:2)))
   ) 
   
+  dailyDataOutput <- reactive({
+    
+    daily.data <- dailyDataHYDAT()
+    
+    # fill in any date data gaps (including completing the first and last years of data)
+    daily.data.temp <- as.data.frame(daily.data[0,])
+    for (parameter in unique(daily.data$Parameter)) {
+      daily.data.param <- daily.data %>% filter(Parameter==parameter)
+      data.empty <- data.frame(Date=seq(min(daily.data.param$Date), max(daily.data.param$Date), by="days"))
+      data.temp <- merge(data.empty,daily.data.param,by="Date",all = TRUE)
+      data.temp$Parameter <- parameter
+      daily.data.temp <- as.data.frame(rbind(daily.data.temp,data.temp))
+    }
+    daily.data <- daily.data.temp
+  })
+  
   #Download data button
   output$download.ltData <- downloadHandler(
     filename = function() {paste0(metaData()[1,2]," - daily discharge.csv")},
     content = function(file) {
-      write.csv(dailyData(),file, row.names = FALSE, na="")
+      write.csv(dailyDataOutput() %>% mutate(Station_Number=values$station) %>% 
+                  select(Station_Number,Date,Parameter,Value,Symbol),
+                file, row.names = FALSE, na="")
     })
   
   
@@ -884,12 +909,17 @@ server <- function(input, output, session) {
   output$download.annualData <- downloadHandler(
     filename = function() {paste0(metaData()[1,2]," - annual summary.csv")},
     content = function(file) {
-      write.csv(annualData(),file, row.names = FALSE, na="")
+      write.csv(annualData() %>% select(Station_Number=STATION_NUMBER,Year,Summary_Stat=Sum_stat,
+                                        Parameter,Value,Date,Symbol),
+                file, row.names = FALSE, na="")
     })  
   output$download.annualPeakData <- downloadHandler(
     filename = function() {paste0(metaData()[1,2]," - annual instantaneous peaks.csv")},
     content = function(file) {
-      write.csv(annInstData(),file, row.names = FALSE, na="")
+      write.csv(annInstData() %>% select(Station_Number=STATION_NUMBER,Year=YEAR,Peak_Code=PEAK_CODE,
+                                         Precision_Code=PRECISION_CODE,Month=MONTH,Day=DAY,Hour=HOUR,
+                                         Minute=MINUTE,Time_Zone=TIME_ZONE,Parameter,Value,Symbol),
+                file, row.names = FALSE, na="")
     })  
   
   
@@ -922,7 +952,7 @@ server <- function(input, output, session) {
                 Percentile25=round(quantile(Value,.25,na.rm=TRUE),3),
                 Percentile95=round(quantile(Value,.95,na.rm=TRUE),3),
                 Percentile5=round(quantile(Value,.05,na.rm=TRUE),3)) %>% 
-      gather(Stat,Value,3:10)
+      gather(Stat,Value,3:12)
     
     month.data
   })
@@ -957,21 +987,20 @@ server <- function(input, output, session) {
   
   # Extract the HYDAT data for table and download button
   HYDATmonthData <- reactive({
-    check <- STN_DATA_RANGE(STATION_NUMBER=values$station) %>% filter(DATA_TYPE=="Q"|DATA_TYPE=="H")
-    
-    if ("Q" %in% check$DATA_TYPE & "H" %in% check$DATA_TYPE) { # both Q and H
+
+    if (metaData()[4,2]=="FLOW AND LEVEL") { # both Q and H
       monthly.flows.hydat <- MONTHLY_FLOWS(STATION_NUMBER=values$station) %>%
         mutate(Parameter="FLOW")
       monthly.levels.hydat <- MONTHLY_LEVELS(STATION_NUMBER=values$station) %>%
         select(-PRECISION_CODE) %>% mutate(Parameter="LEVEL")
       monthly.data <- rbind(monthly.flows.hydat,monthly.levels.hydat) %>%
         select(Parameter,YEAR,MONTH,Sum_stat,Value,Date_occurred)
-    } else if ("Q" %in% check$DATA_TYPE & !("H" %in% check$DATA_TYPE)) { # just Q
+    } else if (metaData()[4,2]=="FLOW") { # just Q
       monthly.flows.hydat <- MONTHLY_FLOWS(STATION_NUMBER=values$station) %>%
         mutate(Parameter="FLOW")
       monthly.data <- monthly.flows.hydat %>%
         select(Parameter,YEAR,MONTH,Sum_stat,Value,Date_occurred)
-    } else if (!("Q" %in% check$DATA_TYPE) & "H" %in% check$DATA_TYPE) { # just H
+    } else if (metaData()[4,2]=="LEVEL") { # just H
       monthly.levels.hydat <- MONTHLY_LEVELS(STATION_NUMBER=values$station) %>%
         select(-PRECISION_CODE) %>% mutate(Parameter="LEVEL")
       monthly.data <- monthly.levels.hydat %>%
@@ -1053,13 +1082,13 @@ server <- function(input, output, session) {
     if (input$month90){
       plot <- plot %>%  add_ribbons(data=plot.data,x= ~Month,ymin= ~Percentile5, ymax= ~Percentile95,name="90% of Flows",
                                     color=I("lightblue2"),hoverinfo= 'text',
-                                    text=~paste('95th Percentile: ',Percentile95,
+                                    text=~paste0('95th Percentile: ',Percentile95,
                                                 '\n5th Percentile: ',Percentile5,
                                                 '\n',MonthText))}
     if (input$month50){
       plot <- plot %>%  add_ribbons(data=plot.data,x= ~Month,ymin= ~Percentile25, ymax= ~Percentile75,name="50% of Flows",
                                     color=I("lightblue3"),hoverinfo= 'text',
-                                    text=~paste('75th Percentile: ',Percentile75,
+                                    text=~paste0('75th Percentile: ',Percentile75,
                                                 '\n25th Percentile: ',Percentile25,
                                                 '\n',MonthText))}
     # Add lines if selected
@@ -1197,12 +1226,18 @@ server <- function(input, output, session) {
   output$download.monthData <- downloadHandler(
     filename = function() {paste0(metaData()[1,2]," - monthly summary.csv")},
     content = function(file) {
-      write.csv(monthData(),file, row.names = FALSE, na="")
+      write.csv(monthData() %>% mutate(Station_Number=values$station) %>% 
+                  select(Station_Number,Parameter,Statistic=Stat,Value) %>% 
+                  mutate(Statistic=replace(Statistic, Statistic=="Percentile5","5th Percentile"),
+                         Statistic=replace(Statistic, Statistic=="Percentile25","25th Percentile"),
+                         Statistic=replace(Statistic, Statistic=="Percentile75","75th Percentile"),
+                         Statistic=replace(Statistic, Statistic=="Percentile95","95th Percentile")),
+                file, row.names = FALSE, na="")
     }) 
   output$download.HYDATmonthData <- downloadHandler(
     filename = function() {paste0(metaData()[1,2]," - monthly summary HYDAT.csv")},
     content = function(file) {
-      write.csv(HYDATmonthData(),file, row.names = FALSE, na="")
+      write.csv(HYDATmonthData() %>% mutate(Station_Number=values$station),file, row.names = FALSE, na="")
     })
   
   ### Historical Daily Summary Data
@@ -1232,7 +1267,7 @@ server <- function(input, output, session) {
                 Percentile5=round(quantile(Value,.05,na.rm=TRUE),3))%>% 
       mutate(Date=as.Date(Day,origin = "1899-12-31"),
              MonthDay=as.character(format(Date,format="%b-%d"))) %>% #format date so all in one year for plotting
-      gather(Stat,Value,3:10)
+      gather(Stat,Value,3:12)
     dailysummary
   })
   
@@ -1308,19 +1343,19 @@ server <- function(input, output, session) {
     if (input$dailyMaxMin){
       plot <- plot %>%  add_ribbons(data=plot.data,x= ~Date,ymin= ~Minimum, ymax= ~Maximum,name="Max-Min Range",
                                     color=I("lightblue1"),
-                                    hoverinfo= 'text',text=~paste('Maximum: ',Maximum,' (',MaxYear,')',
+                                    hoverinfo= 'text',text=~paste0('Maximum: ',Maximum,' (',MaxYear,')',
                                                                   '\nMinimum: ',Minimum,' (',MinYear,')',
                                                                   '\n',MonthDay))}
     if (input$daily90){
       plot <- plot %>%  add_ribbons(data=plot.data,x= ~Date,ymin= ~Percentile95, ymax= ~Percentile5,name="90% of Flows",
                                     color=I("lightblue2"),
-                                    hoverinfo= 'text',text=~paste('95th Percentile: ',Percentile95,
+                                    hoverinfo= 'text',text=~paste0('95th Percentile: ',Percentile95,
                                                                   '\n5th Percentile: ',Percentile5,
                                                                   '\n',MonthDay))}
     if (input$daily50){
       plot <- plot %>%  add_ribbons(data=plot.data,x= ~Date,ymin= ~Percentile25, ymax= ~Percentile75,name="50% of Flows",
                                     color=I("lightblue3"),
-                                    hoverinfo= 'text',text=~paste('75th Percentile: ',Percentile75,
+                                    hoverinfo= 'text',text=~paste0('75th Percentile: ',Percentile75,
                                                                   '\n25th Percentile: ',Percentile25,
                                                                   '\n',MonthDay))}
     
@@ -1408,7 +1443,7 @@ server <- function(input, output, session) {
   output$download.dailySummaryData <- downloadHandler(
     filename = function() {paste0(metaData()[1,2]," - daily summary.csv")},
     content = function(file) {
-      write.csv(dailySummaryData(),file, row.names = FALSE, na="")
+      write.csv(dailySummaryData() %>% mutate(Station_Number=values$station),file, row.names = FALSE, na="")
     })  
   
   
@@ -1532,59 +1567,59 @@ server <- function(input, output, session) {
       if ("Max-Min Range" %in% input$rtHistStats){
         plot <- plot %>%  add_ribbons(data=rtHistoricData() %>% filter(Parameter==input$rtHistParam),
                                       x= ~DateTime,ymin= ~Minimum, ymax= ~Maximum,name="Historic Max-Min Range",
-                                      hoverinfo= 'text',text=~paste('Maximum: ',Maximum,'\nMinimum: ',Minimum,
+                                      hoverinfo= 'text',text=~paste0('Maximum: ',Maximum,'\nMinimum: ',Minimum,
                                                                     '\n',MonthDay), 
                                       color=I("lightblue1"))}
       if ("5-95 Percentile Range" %in% input$rtHistStats){
         plot <- plot %>%  add_ribbons(data=rtHistoricData() %>% filter(Parameter==input$rtHistParam),
                                       x= ~DateTime,ymin= ~Percentile5, ymax= ~Percentile95,name="Historic 5-95 Percentile Range",
-                                      hoverinfo= 'text',text=~paste('95th Percentile: ',Percentile95,'\n5th Percentile: ',Percentile5,
+                                      hoverinfo= 'text',text=~paste0('95th Percentile: ',Percentile95,'\n5th Percentile: ',Percentile5,
                                                                     '\n',MonthDay),
                                       color=I("lightblue2"))}
       if ("25-75 Percentile Range" %in% input$rtHistStats){
         plot <- plot %>%  add_ribbons(data=rtHistoricData() %>% filter(Parameter==input$rtHistParam),
                                       x= ~DateTime,ymin= ~Percentile25, ymax= ~Percentile75,name="Historic 25-75 Percentile Range",
-                                      hoverinfo= 'text',text=~paste('75th Percentile: ',Percentile75,'\n25th Percentile: ',Percentile25,
+                                      hoverinfo= 'text',text=~paste0('75th Percentile: ',Percentile75,'\n25th Percentile: ',Percentile25,
                                                                     '\n',MonthDay),
                                       color=I("lightblue3"))}
       if ("Mean" %in% input$rtHistStats){
         plot <- plot %>%  add_lines(data=rtHistoricData() %>% filter(Parameter==input$rtHistParam),
                                     x= ~DateTime,y=~Mean,name="Historic Daily Mean",
-                                    hoverinfo= 'text',text=~paste('Mean: ',Mean,'\n',MonthDay),
+                                    hoverinfo= 'text',text=~paste0('Mean: ',Mean,'\n',MonthDay),
                                     line=list(color='rgba(61,151,53, 1)'))}
       if ("Median" %in% input$rtHistStats){
         plot <- plot %>%  add_lines(data=rtHistoricData() %>% filter(Parameter==input$rtHistParam),
                                     x= ~DateTime,y=~Median,name="Historic Daily Median",
-                                    hoverinfo= 'text',text=~paste('Median: ',Median,'\n',MonthDay),
+                                    hoverinfo= 'text',text=~paste0('Median: ',Median,'\n',MonthDay),
                                     line=list(color='rgba(143,53,151, 1)'))}
     } else if (input$rtHistoric & length(input$rtParam)==2 & input$rtHistParam=="LEVEL"){
       if ("Max-Min Range" %in% input$rtHistStats){
         plot <- plot %>%  add_ribbons(data=rtHistoricData() %>% filter(Parameter==input$rtHistParam)
                                       ,x= ~DateTime,ymin= ~Minimum, ymax= ~Maximum,name="Historic Max-Min Range",
-                                      hoverinfo= 'text',text=~paste('Maximum: ',Maximum,'\nMinimum: ',Minimum,
+                                      hoverinfo= 'text',text=~paste0('Maximum: ',Maximum,'\nMinimum: ',Minimum,
                                                                     '\n',MonthDay),
                                       color=I("lightblue1"), yaxis = "y2")}
       if ("5-95 Percentile Range" %in% input$rtHistStats){
         plot <- plot %>%  add_ribbons(data=rtHistoricData() %>% filter(Parameter==input$rtHistParam),
                                       x= ~DateTime,ymin= ~Percentile5, ymax= ~Percentile95,name="Historic 5-95 Percentile Range",
-                                      hoverinfo= 'text',text=~paste('95th Percentile: ',Percentile95,'\n5th Percentile: ',Percentile5,
+                                      hoverinfo= 'text',text=~paste0('95th Percentile: ',Percentile95,'\n5th Percentile: ',Percentile5,
                                                                     '\n',MonthDay),
                                       color=I("lightblue2"), yaxis = "y2")}
       if ("25-75 Percentile Range" %in% input$rtHistStats){
         plot <- plot %>%  add_ribbons(data=rtHistoricData() %>% filter(Parameter==input$rtHistParam),
                                       x= ~DateTime,ymin= ~Percentile25, ymax= ~Percentile75,name="Historic 25-75 Percentile Range",
-                                      hoverinfo= 'text',text=~paste('75th Percentile: ',Percentile75,'\n25th Percentile: ',Percentile25,
+                                      hoverinfo= 'text',text=~paste0('75th Percentile: ',Percentile75,'\n25th Percentile: ',Percentile25,
                                                                     '\n',MonthDay),
                                       color=I("lightblue3"), yaxis = "y2")}
       if ("Mean" %in% input$rtHistStats){
         plot <- plot %>%  add_lines(data=rtHistoricData() %>% filter(Parameter==input$rtHistParam),
                                     x= ~DateTime,y=~Mean,name="Historic Daily Mean",
-                                    # hoverinfo= 'text',text=~paste('Mean: ',Mean,'\nDay: ',MonthDay),
+                                    hoverinfo= 'text',text=~paste('Mean: ',Mean,'\nDay: ',MonthDay),
                                     line=list(color='rgba(61,151,53, 1)'), yaxis = "y2")}
       if ("Median" %in% input$rtHistStats){
         plot <- plot %>%  add_lines(data=rtHistoricData() %>% filter(Parameter==input$rtHistParam),
                                     x= ~DateTime,y=~Median,name="Historic Daily Median",
-                                    # hoverinfo= 'text',text=~paste('Median: ',Median,'\nDay: ',MonthDay),
+                                    hoverinfo= 'text',text=~paste('Median: ',Median,'\nDay: ',MonthDay),
                                     line=list(color='rgba(143,53,151, 1)'), yaxis = "y2")}
     }
     
@@ -1592,10 +1627,10 @@ server <- function(input, output, session) {
     if (length(input$rtParam)==2) { #If both flow and water level
       plot <- plot %>%
         add_lines(data=realtimeData() %>% filter(Parameter=="FLOW"),x= ~DateTime,y= ~Value, name="Instantaneous Discharge",
-                  hoverinfo= 'text',text=~paste('Inst. Discharge: ',Value,"cms",'\n',DateTime),
+                  hoverinfo= 'text',text=~paste0('Inst. Discharge: ',Value,"cms",'\n',DateTime),
                   line=list(color='rgba(31, 119, 180, 1)')) %>% 
         add_lines(data=realtimeData() %>% filter(Parameter=="LEVEL"),x= ~DateTime,y= ~Value, name="Instantaneous Water Level",
-                  hoverinfo= 'text',text=~paste('Inst. Water Level: ',Value,"m",'\n',DateTime), 
+                  hoverinfo= 'text',text=~paste0('Inst. Water Level: ',Value,"m",'\n',DateTime), 
                   line=list(color='rgba(255, 127, 14, 1)'),yaxis = "y2") %>% 
         layout(xaxis=list(title="Date"),
                yaxis=rtplot.y(),
@@ -1603,7 +1638,7 @@ server <- function(input, output, session) {
     else if (length(input$rtParam)==1 & input$rtParam=="FLOW") { #if just flow data
       plot <- plot %>%
         add_lines(data=realtimeData() %>% filter(Parameter=="FLOW"),x= ~DateTime,y= ~Value, name="Instantaneous Discharge",
-                  hoverinfo= 'text',text=~paste('Inst. Discharge: ',Value,"cms",'\n',DateTime),
+                  hoverinfo= 'text',text=~paste0('Inst. Discharge: ',Value,"cms",'\n',DateTime),
                   line=list(color='rgba(31, 119, 180, 1)')) %>% 
         layout(xaxis=list(title="Date"),
                yaxis=rtplot.y(),
@@ -1611,7 +1646,7 @@ server <- function(input, output, session) {
     else if (length(input$rtParam)==1 & input$rtParam=="LEVEL") { # if just level data
       plot <- plot %>%
         add_lines(data=realtimeData() %>% filter(Parameter=="LEVEL"),x= ~DateTime,y= ~Value, name="Instantaneous Water Level",
-                  hoverinfo= 'text',text=~paste('Inst. Water Level: ',Value,"m",'\nDate/Time: ',DateTime),
+                  hoverinfo= 'text',text=~paste0('Inst. Water Level: ',Value,"m",'\nDate/Time: ',DateTime),
                   line=list(color='rgba(255, 127, 14, 1)')) %>% 
         layout(xaxis=list(title="Date"),
                yaxis=list(title = "Water Level (m)"),
