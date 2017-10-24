@@ -429,7 +429,7 @@ server <- function(input, output, session) {
   
   # Create reactive values$station to be selected by the selectbox, data.table and map click
   values <- reactiveValues()
-  values$station <- "08HB048"#as.data.frame(stations)[1,1]
+  values$station <- "08NM116"
   
   output$test <- renderText({values$station})
   
