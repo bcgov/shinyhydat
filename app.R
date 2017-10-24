@@ -21,6 +21,7 @@ library(leaflet)
 library(tidyhydat)
 library(plotly)
 library(httr)
+library(DT)
 
 
 ## Create a dataframe of all station metadata and a list of all stations
@@ -97,17 +98,18 @@ ui <- dashboardPage(
                                 column(width=4,
                                        box(width=12,status = "primary",
                                            h4("Map Settings"),br(),
-                                           checkboxInput("mapSelected","Display selected station",
-                                                         value = TRUE),
-                                           checkboxInput("mapRadius","Adjust size of marker to drainage basin area",
-                                                         value = FALSE),
-                                           selectInput("mapColor","Colour the markers by:",
+                                           selectInput("mapColor","Station colour:",
                                                        choices = c("None","Station Status"="HYD_STATUS",
                                                                    "Reference (RHBN)"="RHBN",
                                                                    "Real-time"="REAL_TIME",
                                                                    "Regulation"="REGULATED",
                                                                    "Data Type"="PARAMETER"),
-                                                       selected = "None"))))),
+                                                       selected = "None"),
+                                           checkboxInput("mapSelected","Display selected station",
+                                                         value = TRUE),
+                                           checkboxInput("mapRadius","Adjust size of marker to drainage basin area",
+                                                         value = FALSE)
+                                       )))),
              tabPanel("Station Info",
                       br(),
                       fluidRow(column(width = 6,
@@ -405,6 +407,22 @@ server <- function(input, output, session) {
   
   proxy = DT::dataTableProxy('allstationsTable')   # Allows for updating the selected row from the select-widget and the map
   
+  ## Format the station lists for download
+  downloadStationsList <- reactive({
+    list <- stations %>% 
+      mutate(row=c(1:(n()))) %>% 
+      filter(row %in% input$allstationsTable_rows_all) %>% 
+      select(-row)
+    list
+  })
+  
+  
+  output$download.stations <- downloadHandler(
+    filename = function() {paste0("Stations_Table.csv")},
+    content = function(file) {
+      write.csv(downloadStationsList(),file, row.names = FALSE, na="")
+    })
+  
   
   ### Setting the station ###
   ###########################
@@ -451,7 +469,7 @@ server <- function(input, output, session) {
                        lng = ~LONGITUDE,lat = ~LATITUDE, 
                        color = "red", radius = 4) %>%
       addCircleMarkers(data= stations, lng = ~LONGITUDE, lat = ~LATITUDE, layerId = ~STATION_NUMBER, 
-                       color = "blue", radius = 3,fillOpacity=.7,stroke = FALSE,
+                       color = "blue", radius = 3,fillOpacity=.8,stroke = FALSE,
                        label = ~paste0(STATION_NAME, " (",STATION_NUMBER,") - ",HYD_STATUS)
                        #,clusterOptions = markerClusterOptions()
                        )
@@ -473,7 +491,11 @@ server <- function(input, output, session) {
     if (input$mapColor != "None") {
       colorBy <- input$mapColor
       colorData <- stations[[colorBy]]
-      pal <- colorFactor("Set2", unique(colorData))
+      pal <- colorFactor(c("#4daf4a",
+                           "#377eb8",
+                           "#e41a1c",
+                           "#984ea3"), 
+                         unique(colorData))
       
       leg.title <- ifelse(input$mapColor=="HYD_STATUS","Station Status",
                           ifelse(input$mapColor=="RHBN","Reference (RHBN)",
@@ -481,11 +503,10 @@ server <- function(input, output, session) {
                                         ifelse(input$mapColor=="REGULATED","Regulation",
                                                ifelse(input$mapColor=="PARAMETER","Data Type")))))
 
-      
       leafletProxy("map") %>%
         clearMarkers()%>% 
         addCircleMarkers(data= stations, lng = ~LONGITUDE, lat = ~LATITUDE, layerId = ~STATION_NUMBER, 
-                         color = pal(colorData), radius = rad,stroke = FALSE,fillOpacity=.7,
+                         color = pal(colorData), radius = rad,stroke = FALSE,fillOpacity=.8,
                          label = ~paste0(STATION_NAME, " (",STATION_NUMBER,") - ",HYD_STATUS)) %>%
         addLegend("topright", pal=pal, values=colorData, title=leg.title,
                   layerId="colorLegend")
@@ -494,7 +515,7 @@ server <- function(input, output, session) {
         clearMarkers()%>% 
         clearControls() %>% 
         addCircleMarkers(data= stations, lng = ~LONGITUDE, lat = ~LATITUDE, layerId = ~STATION_NUMBER, 
-                         color = "blue", radius = rad,stroke = FALSE,fillOpacity=.7,
+                         color = "blue", radius = rad,stroke = FALSE,fillOpacity=.8,
                          label = ~paste0(STATION_NAME, " (",STATION_NUMBER,") - ",HYD_STATUS))
     }
     
@@ -526,21 +547,7 @@ server <- function(input, output, session) {
                        label = ~paste0(STATION_NAME, " (",STATION_NUMBER,") - ",HYD_STATUS))
   })
   
-  ## Format the station lists for download
-  downloadStationsList <- reactive({
-    list <- stations %>% 
-      mutate(row=c(1:(n()))) %>% 
-      filter(row %in% input$allstationsTable_rows_all) %>% 
-      select(-row)
-    list
-  })
-  output$download.stations <- downloadHandler(
-    filename = function() {paste0("Stations_Table.csv")},
-    content = function(file) {
-      write.csv(downloadStationsList(),file, row.names = FALSE, na="")
-    })
-  
-  
+
   ### Displaying Station Information ###
   ######################################
   
