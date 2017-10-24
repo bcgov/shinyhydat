@@ -92,11 +92,15 @@ ui <- dashboardPage(
              tabPanel("Stations Map",
                       br(),
                       fluidPage(column(width=8,
-                                       tags$style(type = "text/css", "#map {height: calc(100vh - 170px) !important;}"),
-                                       leafletOutput("map")),
+                                       # tags$style(type = "text/css", "#map {height: calc(100vh - 170px) !important;}"),
+                                       leafletOutput("map",width="100%",height="650px")),
                                 column(width=4,
                                        box(width=12,status = "primary",
                                            h5("Map Settings"),
+                                           selectInput("mapColor","Select the map colour category:",
+                                                       choices = c("HYD_STATUS","RHBN",
+                                                                   "REAL_TIME","REGULATED","PARAMETER"),
+                                                       selected = "HYD_STATUS"),
                                            selectizeInput("mapProvince","Province:",
                                                           choices=c("AB","BC","SK","MB","ON","QC",
                                                                     "NB","NS","PE","NL","YT","NT","NU"),
@@ -449,19 +453,47 @@ server <- function(input, output, session) {
   
   
   ### Create the Stations Map  ###
-  ################################
+  ################################.
   
   output$map <- renderLeaflet({
-    leaflet(stations) %>% addTiles() %>% 
+    colorBy <- "HYD_STATUS"
+    colorData <- stations[[colorBy]]
+    pal <- colorFactor("Set2", unique(colorData))
+    
+    
+    leaflet(stations) %>% addTiles()%>% 
       addCircleMarkers(layerId="selected",
                        data = filter(stations, STATION_NUMBER %in% values$station),
                        lng = ~LONGITUDE,lat = ~LATITUDE, 
                        color = "red", radius = 7) %>%
       addCircleMarkers(data= stations, lng = ~LONGITUDE, lat = ~LATITUDE, layerId = ~STATION_NUMBER, 
-                       color = "blue", radius = 2,
-                       label = ~paste0(STATION_NAME, " (",STATION_NUMBER,") - ",HYD_STATUS))
+                       color = pal(colorData), radius = 1,
+                       label = ~paste0(STATION_NAME, " (",STATION_NUMBER,") - ",HYD_STATUS)) %>%
+      addLegend("topright", pal=pal, values=colorData, title=colorBy,
+                layerId="colorLegend")
     
   })
+  
+  ## Change the map colour based on the input (HYD_STATUS is the default, as above)
+  observe({
+    colorBy <- input$mapColor
+    colorData <- stations[[colorBy]]
+    pal <- colorFactor("Set2", unique(colorData))
+
+    
+    leafletProxy("map") %>%
+      clearShapes()%>% 
+      addCircleMarkers(layerId="selected",
+                       data = filter(stations, STATION_NUMBER %in% values$station),
+                       lng = ~LONGITUDE,lat = ~LATITUDE, 
+                       color = "red", radius = 7) %>%
+      addCircleMarkers(data= stations, lng = ~LONGITUDE, lat = ~LATITUDE, layerId = ~STATION_NUMBER, 
+                       color = pal(colorData), radius = 2,
+                       label = ~paste0(STATION_NAME, " (",STATION_NUMBER,") - ",HYD_STATUS)) %>%
+      addLegend("topright", pal=pal, values=colorData, title=colorBy,
+                layerId="colorLegend")
+  })
+  
   
   # Allows the selection of stations without redrawing the map
   observe({
@@ -469,10 +501,10 @@ server <- function(input, output, session) {
       removeMarker(layerId="selected") %>%
       addCircleMarkers(layerId="selected",
                        data = filter(stations, STATION_NUMBER %in% values$station),
-                       lng = ~LONGITUDE,lat = ~LATITUDE, 
+                       lng = ~LONGITUDE,lat = ~LATITUDE,
                        color = "red", radius = 7)
   })
-  
+
   # Displayed the chosen station on the map
   observeEvent(input$stationsMapAdd, {
     leafletProxy("map") %>%
