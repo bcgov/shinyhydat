@@ -96,29 +96,18 @@ ui <- dashboardPage(
                                        leafletOutput("map",width="100%",height="650px")),
                                 column(width=4,
                                        box(width=12,status = "primary",
-                                           h5("Map Settings"),
-                                           selectInput("mapColor","Select the map colour category:",
-                                                       choices = c("HYD_STATUS","RHBN",
-                                                                   "REAL_TIME","REGULATED","PARAMETER"),
-                                                       selected = "HYD_STATUS"),
-                                           selectizeInput("mapProvince","Province:",
-                                                          choices=c("AB","BC","SK","MB","ON","QC",
-                                                                    "NB","NS","PE","NL","YT","NT","NU"),
-                                                          selected="BC",
-                                                          multiple=TRUE),
-                                           selectizeInput("mapStatus","Status:",
-                                                          choices=c("Active","Discontinued"),
-                                                          selected=c("Active","Discontinued"),
-                                                          multiple=TRUE),
-                                           selectizeInput("mapReg","Regulation:",
-                                                          choices=c("Natural","Regulated"),
-                                                          selected=c("Natural","Regulated"),
-                                                          multiple=TRUE),
-                                           selectizeInput("mapRT","Real-time:",
-                                                          choices=c("Yes","No"),
-                                                          selected=c("Yes","No"),
-                                                          multiple=TRUE),
-                                           uiOutput("mapDA"))))),
+                                           h4("Map Settings"),br(),
+                                           checkboxInput("mapSelected","Display selected station",
+                                                         value = TRUE),
+                                           checkboxInput("mapRadius","Adjust size of marker to drainage basin area",
+                                                         value = FALSE),
+                                           selectInput("mapColor","Colour the markers by:",
+                                                       choices = c("None","Station Status"="HYD_STATUS",
+                                                                   "Reference (RHBN)"="RHBN",
+                                                                   "Real-time"="REAL_TIME",
+                                                                   "Regulation"="REGULATED",
+                                                                   "Data Type"="PARAMETER"),
+                                                       selected = "None"))))),
              tabPanel("Station Info",
                       br(),
                       fluidRow(column(width = 6,
@@ -456,56 +445,76 @@ server <- function(input, output, session) {
   ################################.
   
   output$map <- renderLeaflet({
-    colorBy <- "HYD_STATUS"
-    colorData <- stations[[colorBy]]
-    pal <- colorFactor("Set2", unique(colorData))
-    
-    
     leaflet(stations) %>% addTiles()%>% 
       addCircleMarkers(layerId="selected",
                        data = filter(stations, STATION_NUMBER %in% values$station),
                        lng = ~LONGITUDE,lat = ~LATITUDE, 
-                       color = "red", radius = 7) %>%
+                       color = "red", radius = 4) %>%
       addCircleMarkers(data= stations, lng = ~LONGITUDE, lat = ~LATITUDE, layerId = ~STATION_NUMBER, 
-                       color = pal(colorData), radius = 1,
-                       label = ~paste0(STATION_NAME, " (",STATION_NUMBER,") - ",HYD_STATUS)) %>%
-      addLegend("topright", pal=pal, values=colorData, title=colorBy,
-                layerId="colorLegend")
-    
+                       color = "blue", radius = 3,fillOpacity=.7,stroke = FALSE,
+                       label = ~paste0(STATION_NAME, " (",STATION_NUMBER,") - ",HYD_STATUS)
+                       #,clusterOptions = markerClusterOptions()
+                       )
   })
   
-  ## Change the map colour based on the input (HYD_STATUS is the default, as above)
+  ## Change the map mark colour a sizes based on the inputs
   observe({
-    colorBy <- input$mapColor
-    colorData <- stations[[colorBy]]
-    pal <- colorFactor("Set2", unique(colorData))
-
     
-    leafletProxy("map") %>%
-      clearShapes()%>% 
-      addCircleMarkers(layerId="selected",
-                       data = filter(stations, STATION_NUMBER %in% values$station),
-                       lng = ~LONGITUDE,lat = ~LATITUDE, 
-                       color = "red", radius = 7) %>%
-      addCircleMarkers(data= stations, lng = ~LONGITUDE, lat = ~LATITUDE, layerId = ~STATION_NUMBER, 
-                       color = pal(colorData), radius = 2,
-                       label = ~paste0(STATION_NAME, " (",STATION_NUMBER,") - ",HYD_STATUS)) %>%
-      addLegend("topright", pal=pal, values=colorData, title=colorBy,
-                layerId="colorLegend")
-  })
-  
-  
-  # Allows the selection of stations without redrawing the map
-  observe({
-    leafletProxy("map") %>%
-      removeMarker(layerId="selected") %>%
-      addCircleMarkers(layerId="selected",
-                       data = filter(stations, STATION_NUMBER %in% values$station),
-                       lng = ~LONGITUDE,lat = ~LATITUDE,
-                       color = "red", radius = 7)
-  })
+    # set the radius size based on drainage area if selected
+    if (input$mapRadius){
+      rad <- log(stations[["DRAINAGE_AREA_GROSS"]])
+      rad2 <- rad+.5
+    } else {
+      rad <- 3
+      rad2 <- 4
+    }
+    
+    # if a color category is chosen, add the colors and legend
+    if (input$mapColor != "None") {
+      colorBy <- input$mapColor
+      colorData <- stations[[colorBy]]
+      pal <- colorFactor("Set2", unique(colorData))
+      
+      leg.title <- ifelse(input$mapColor=="HYD_STATUS","Station Status",
+                          ifelse(input$mapColor=="RHBN","Reference (RHBN)",
+                                 ifelse(input$mapColor=="REAL_TIME","Real-time",
+                                        ifelse(input$mapColor=="REGULATED","Regulation",
+                                               ifelse(input$mapColor=="PARAMETER","Data Type")))))
 
-  # Displayed the chosen station on the map
+      
+      leafletProxy("map") %>%
+        clearMarkers()%>% 
+        addCircleMarkers(data= stations, lng = ~LONGITUDE, lat = ~LATITUDE, layerId = ~STATION_NUMBER, 
+                         color = pal(colorData), radius = rad,stroke = FALSE,fillOpacity=.7,
+                         label = ~paste0(STATION_NAME, " (",STATION_NUMBER,") - ",HYD_STATUS)) %>%
+        addLegend("topright", pal=pal, values=colorData, title=leg.title,
+                  layerId="colorLegend")
+    } else {
+      leafletProxy("map") %>%
+        clearMarkers()%>% 
+        clearControls() %>% 
+        addCircleMarkers(data= stations, lng = ~LONGITUDE, lat = ~LATITUDE, layerId = ~STATION_NUMBER, 
+                         color = "blue", radius = rad,stroke = FALSE,fillOpacity=.7,
+                         label = ~paste0(STATION_NAME, " (",STATION_NUMBER,") - ",HYD_STATUS))
+    }
+    
+    # add or remove the selected station (the size will change with the radius)
+    if (input$mapSelected) {
+      leafletProxy("map") %>%
+        removeMarker(layerId="selected") %>%
+        addCircleMarkers(layerId="selected",
+                         data = filter(stations, STATION_NUMBER == values$station),
+                         lng = ~LONGITUDE,lat = ~LATITUDE,
+                         color = "red", radius = rad2)
+    } else {
+      leafletProxy("map")  %>%
+        removeMarker(layerId="selected")
+    }
+
+  })
+  
+  
+  # Displayed the filtered stations on the map
   observeEvent(input$stationsMapAdd, {
     leafletProxy("map") %>%
       clearMarkers() %>%
@@ -1743,12 +1752,7 @@ server <- function(input, output, session) {
   ### Under Development  ###
   #####################################################################
   
-  output$mapDA <- renderUI({
-    sliderInput("mapDA", label = "Drainage area (sqkm):", 
-                min = min(stations$DRAINAGE_AREA_GROSS,na.rm = T), 
-                max = max(stations$DRAINAGE_AREA_GROSS,na.rm = T), 
-                value = c(min(stations$DRAINAGE_AREA_GROSS,na.rm = T), max(stations$DRAINAGE_AREA_GROSS,na.rm = T)))
-  })
+
   
   
   # Deal with later
