@@ -25,16 +25,16 @@ library(DT)
 
 
 ## Create a dataframe of all station metadata and a list of all stations
-stations <- STATIONS(PROV_TERR_STATE_LOC = "BC") %>%  #c("AB","BC","SK","MB","ON","QC","NB","NS","PE","NL","YT","NT","NU")
-  left_join(AGENCY_LIST(), by = c("CONTRIBUTOR_ID" = "AGENCY_ID")) %>% rename("CONTRIBUTOR"=AGENCY_EN) %>% 
-  left_join(AGENCY_LIST(), by = c("OPERATOR_ID" = "AGENCY_ID")) %>%  rename("OPERATOR"=AGENCY_EN) %>% 
-  left_join(DATUM_LIST(), by = c("DATUM_ID" = "DATUM_ID")) %>% rename("DATUM"=DATUM_EN) %>% 
+stations <- hy_stations(prov_terr_state_loc = "BC") %>%  #c("AB","BC","SK","MB","ON","QC","NB","NS","PE","NL","YT","NT","NU")
+  left_join(hy_agency_list(), by = c("CONTRIBUTOR_ID" = "AGENCY_ID")) %>% rename("CONTRIBUTOR"=AGENCY_EN) %>% 
+  left_join(hy_agency_list(), by = c("OPERATOR_ID" = "AGENCY_ID")) %>%  rename("OPERATOR"=AGENCY_EN) %>% 
+  left_join(hy_datum_list(), by = c("DATUM_ID" = "DATUM_ID")) %>% rename("DATUM"=DATUM_EN) %>% 
   mutate(REGIONAL_OFFICE_ID = as.integer(REGIONAL_OFFICE_ID)) %>% 
-  left_join(REGIONAL_OFFICE_LIST(), by = c("REGIONAL_OFFICE_ID" = "REGIONAL_OFFICE_ID")) %>% rename("REGIONAL_OFFICE"=REGIONAL_OFFICE_NAME_EN) %>% 
-  left_join(STN_REGULATION(), by="STATION_NUMBER") %>% 
+  left_join(hy_reg_office_list(), by = c("REGIONAL_OFFICE_ID" = "REGIONAL_OFFICE_ID")) %>% rename("REGIONAL_OFFICE"=REGIONAL_OFFICE_NAME_EN) %>% 
+  left_join(hy_stn_regulation(), by="STATION_NUMBER") %>% 
   select(STATION_NUMBER,STATION_NAME,PROV_TERR_STATE_LOC,HYD_STATUS,LATITUDE,LONGITUDE,DRAINAGE_AREA_GROSS,RHBN,
          REAL_TIME,REGULATED,CONTRIBUTOR,OPERATOR,REGIONAL_OFFICE,DATUM)
-station.parameters <- STN_DATA_RANGE() %>% filter(DATA_TYPE=="Q"|DATA_TYPE=="H")  %>% 
+station.parameters <- hy_stn_data_range() %>% filter(DATA_TYPE=="Q"|DATA_TYPE=="H")  %>% 
   select(STATION_NUMBER,DATA_TYPE) %>% spread(DATA_TYPE,DATA_TYPE) %>% 
   mutate(PARAMETER=ifelse(is.na(H),"FLOW",ifelse(is.na(Q),"LEVEL",paste("FLOW AND LEVEL"))))
 stations <- left_join(stations,station.parameters %>% select(STATION_NUMBER,PARAMETER),by="STATION_NUMBER") 
@@ -327,7 +327,18 @@ ui <- dashboardPage(
                                                                        uiOutput("rtParam"),
                                                                        checkboxInput("rtlog", 
                                                                                      label = "Log scale on 'Discharge' axis", 
-                                                                                     value= FALSE)),
+                                                                                     value= FALSE),
+                                                                       checkboxInput("rtLTMEAN",
+                                                                                     "Display long-term mean",
+                                                                                     value=FALSE),
+                                                                       checkboxInput("rtLTMEANPCT",
+                                                                                     "Display percentage of long-term mean",
+                                                                                     value=FALSE),
+                                                                       numericInput("rtLTMEANPCTvalue",
+                                                                                    "Percentage",
+                                                                                    value=100,
+                                                                                    min=0,
+                                                                                    step=5)),
                                                                 column(1),
                                                                 column(6,hr(),
                                                                        checkboxInput("rtHistoric","Display historic daily data",value= FALSE),
@@ -373,7 +384,7 @@ server <- function(input, output, session) {
     
   })
   output$localHYDAT <- renderText({
-    paste0("Local: ",as.Date(as.data.frame(VERSION())[,2]))
+    paste0("Local: ",as.Date(as.data.frame(hy_version())[,2]))
     
   })
   
@@ -600,14 +611,14 @@ server <- function(input, output, session) {
 
     # extract flow or water level data depending on what is available
     if (metaData()[4,2]=="FLOW AND LEVEL") { # both Q and H
-      daily.flow.HYDAT <- DLY_FLOWS(STATION_NUMBER=values$station)
-      daily.levels.HYDAT <- DLY_LEVELS(STATION_NUMBER=values$station)
+      daily.flow.HYDAT <- hy_daily_flows(station_number = values$station)
+      daily.levels.HYDAT <- hy_daily_levels(station_number=values$station)
       daily.data <- rbind(daily.flow.HYDAT[,c(2:5)],daily.levels.HYDAT[,c(2:5)])
     } else if (metaData()[4,2]=="FLOW") { # just Q
-      daily.flow.HYDAT <- DLY_FLOWS(STATION_NUMBER=values$station)
+      daily.flow.HYDAT <- hy_daily_flows(station_number=values$station)
       daily.data <- daily.flow.HYDAT[,c(2:5)]
     } else if (metaData()[4,2]=="LEVEL") { # just H
-      daily.levels.HYDAT <- DLY_LEVELS(STATION_NUMBER=values$station)
+      daily.levels.HYDAT <- hy_daily_levels(station_number=values$station)
       daily.data <- daily.levels.HYDAT[,c(2:5)]
     }
     daily.data
@@ -800,7 +811,7 @@ server <- function(input, output, session) {
   # Extract monthly discharge and water level data from HYDAT
   annualData <- reactive({
     
-    annual <- ANNUAL_STATISTICS(STATION_NUMBER=values$station) %>% 
+    annual <- hy_annual_stats(station_number=values$station) %>% 
       filter(Parameter=="Flow" | Parameter == "Water Level") %>% 
       mutate(Parameter=replace(Parameter, Parameter=="Flow", "FLOW"),
              Parameter=replace(Parameter, Parameter=="Water Level", "LEVEL"))
@@ -830,7 +841,7 @@ server <- function(input, output, session) {
   # Extract monthly instanteous peaks of discharge and water level data from HYDAT
   annInstData <- reactive({
     # Extract and format columns for displaying information
-    annual.instant <- ANNUAL_INSTANT_PEAKS(STATION_NUMBER=values$station)
+    annual.instant <- hy_annual_instant_peaks(station_number=values$station)
     
     annual.instant <- annual.instant %>% 
       mutate(Date=as.Date(paste(YEAR,MONTH,DAY,sep="-"),format="%Y-%m-%d"),
@@ -1037,19 +1048,19 @@ server <- function(input, output, session) {
   HYDATmonthData <- reactive({
 
     if (metaData()[4,2]=="FLOW AND LEVEL") { # both Q and H
-      monthly.flows.hydat <- MONTHLY_FLOWS(STATION_NUMBER=values$station) %>%
+      monthly.flows.hydat <- hy_monthly_flows(station_number=values$station) %>%
         mutate(Parameter="FLOW")
-      monthly.levels.hydat <- MONTHLY_LEVELS(STATION_NUMBER=values$station) %>%
+      monthly.levels.hydat <- hy_monthly_levels(station_number=values$station) %>%
         select(-PRECISION_CODE) %>% mutate(Parameter="LEVEL")
       monthly.data <- rbind(monthly.flows.hydat,monthly.levels.hydat) %>%
         select(Parameter,YEAR,MONTH,Sum_stat,Value,Date_occurred)
     } else if (metaData()[4,2]=="FLOW") { # just Q
-      monthly.flows.hydat <- MONTHLY_FLOWS(STATION_NUMBER=values$station) %>%
+      monthly.flows.hydat <- hy_monthly_flows(station_number=values$station) %>%
         mutate(Parameter="FLOW")
       monthly.data <- monthly.flows.hydat %>%
         select(Parameter,YEAR,MONTH,Sum_stat,Value,Date_occurred)
     } else if (metaData()[4,2]=="LEVEL") { # just H
-      monthly.levels.hydat <- MONTHLY_LEVELS(STATION_NUMBER=values$station) %>%
+      monthly.levels.hydat <- hy_monthly_levels(station_number=values$station) %>%
         select(-PRECISION_CODE) %>% mutate(Parameter="LEVEL")
       monthly.data <- monthly.levels.hydat %>%
         select(Parameter,YEAR,MONTH,Sum_stat,Value,Date_occurred)
@@ -1501,7 +1512,7 @@ server <- function(input, output, session) {
   
   #Check if real-time data can be downloaded (some stations with realtime dont have data to download)
   output$rtExists <- reactive({
-    if(is.null(realtime.HYDAT <- download_realtime_dd(STATION_NUMBER = values$station))){
+    if(is.null(realtime.HYDAT <- realtime_dd(station_number = values$station))){
       exist <- "No"
     } else {
       exist <- "Yes"
@@ -1513,7 +1524,7 @@ server <- function(input, output, session) {
   output$noRT <- renderText({
     if(metaData()[9,2]=="No") {
       paste("*** No real-time data available for this station.")
-    } else if(metaData()[9,2]=="Yes" & is.null(realtime.HYDAT <- download_realtime_dd(STATION_NUMBER = values$station))) {
+    } else if(metaData()[9,2]=="Yes" & is.null(realtime.HYDAT <- realtime_dd(station_number = values$station))) {
       paste("*** No real-time data available at this time.")
     }
     
@@ -1521,7 +1532,7 @@ server <- function(input, output, session) {
   
   # Extract real-time data from weblink and clip to dates
   realtimeData <- reactive({ 
-    realtime.HYDAT <- download_realtime_dd(STATION_NUMBER = values$station)#values$station
+    realtime.HYDAT <- realtime_dd(station_number = values$station)#values$station
     
     # Remove FLOW OR LEVEL if there either are all NA
     realtime.FLOW <- realtime.HYDAT %>% filter(Parameter=="FLOW")
@@ -1699,6 +1710,12 @@ server <- function(input, output, session) {
         layout(xaxis=list(title="Date"),
                yaxis=list(title = "Water Level (m)"),
                showlegend = TRUE)} 
+    if (input$rtLTMEAN){
+      plot <- plot %>% 
+        add_lines(x=c(min(realtimeData()$DateTime),max(realtimeData()$DateTime)),
+                  y=mean(realtimeData() %>% filter(Parameter=="FLOW") %>% select(Value),na.rm = TRUE))
+    }
+    
     
     plot
   })
