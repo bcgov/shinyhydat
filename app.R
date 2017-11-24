@@ -47,7 +47,7 @@ stations.list <- as.list(stations$STATION_NUMBER)
 #######################################################################################
 
 ui <- dashboardPage(
-  dashboardHeader(title="HYDAT Data Viewer"),
+  dashboardHeader(title="HYDATview"),
   dashboardSidebar(
     fluidPage(
       br(),
