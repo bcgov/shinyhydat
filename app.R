@@ -12,7 +12,7 @@
 
 
 
-library(shiny)
+library(shiny) ## <1.0.4 dplyr
 library(shinydashboard)
 library(shinyWidgets)
 library(dplyr) ## >0.7.0 dplyr
@@ -47,7 +47,7 @@ stations.list <- as.list(stations$STATION_NUMBER)
 #######################################################################################
 
 ui <- dashboardPage(
-  dashboardHeader(title="HYDATview"),
+  dashboardHeader(title="shinyhydat"),
   dashboardSidebar(
     fluidPage(
       br(),
