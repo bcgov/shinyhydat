@@ -1,69 +1,46 @@
 
 <!-- README.md is generated from README.Rmd. Please edit that file -->
-HYDAT Streamflow Data Viewer
-----------------------------
+shinyhydat
+----------
 
-<a rel="Exploration" href="https://github.com/BCDevExchange/docs/blob/master/discussion/projectstates.md"><img alt="In production, but maybe in Alpha or Beta. Intended to persist and be supported." style="border-width:0" src="https://assets.bcdevexchange.org/images/badges/exploration.svg" title="In production, but maybe in Alpha or Beta. Intended to persist and be supported." /></a>
+<a rel="Inspiration" href="https://github.com/BCDevExchange/docs/blob/master/discussion/projectstates.md"><img alt="An idea being explored and shaped. Open for discussion, but may never go anywhere." style="border-width:0" src="https://assets.bcdevexchange.org/images/badges/inspiration.svg" title="An idea being explored and shaped. Open for discussion, but may never go anywhere." /></a>
 
-This is a shiny app to view and download historical streamflow data from a downloaded HYDAT SQLite database ([download here](http://collaboration.cmc.ec.gc.ca/cmc/hydrometrics/www/)) and real-time data using [tidyhydat](https://github.com/bcgov/tidyhydat).
+This is a shiny app to view and download historical streamflow data from a downloaded HYDAT SQLite database and real-time data using [tidyhydat](https://github.com/ropensci/tidyhydat).
 
 Setup
 -----
 
-These instructions assume that you have [installed R and RStudio](https://github.com/bcgov/bcgovr/blob/master/Install_Instructions.md) already on your computer.
+These instructions assume that you have [installed R and RStudio](https://github.com/bcgov/bcgov-data-science-resources/wiki/Installing-R-&-RStudio) already on your computer.
 
 ### Package downloads
 
-The first step to getting the HYDAT Viewer up and running on your machine is to download all the packages needed by the shiny app. All of these packages are available on CRAN with the exception of `tidyhydat`. Type the following into R console to install all of them:
+The first step to getting the shinyhydat up and running on your machine is to download all the packages needed by the shiny app. All of these packages are available on CRAN with the exception of `tidyhydat`. Type the following into R console to install all of them:
 
 ``` r
+install.packages("tidyhydat")
 install.packages("shinydashboard")
-install.packages("dplyr") 
-install.packages("tidyr")
 install.packages("leaflet")
 install.packages("plotly")
-install.packages("httr")
 install.packages("devtools")
-
+install.packages("shinyWidgets")
 
 devtools::install_version("shiny", version = "1.0.3") # 1.0.3 shiny
-devtools::install_github(tidyhydat)
 ```
 
 ### HYDAT download
 
-The second step to using the HYDAT viewer is to download a version of the HYDAT database, Environment and Climate Change Canada's comprehensive database of historical hydrometric data. A zipped version of sqlite3 version can be downloaded here:
-
--   <http://collaboration.cmc.ec.gc.ca/cmc/hydrometrics/www/>
-
-The `tidyhydat` packaeg also provides a convenience function to download HYDAT (be patient though this takes a long time!):
+The second step to using the shinyhydat is to download a version of the HYDAT database, Environment and Climate Change Canada's comprehensive database of historical hydrometric data. The `tidyhydat` package provides a convenience function to download HYDAT (be patient though this takes a long time!):
 
 ``` r
-tidyhydat::download_hydat(dl_hydat_here = "C:/HYDAT_db")
+tidyhydat::download_hydat()
 ```
 
-### HYDAT path set
-
-The third step is that we need to tell R where HYDAT is. We can do this once by setting the path in the `.Renviron` file which is then automatically called by the HYDAT Viewer. In R you can open up `.Renviron` like this:
-
-``` r
-file.edit("~/.Renviron")
-```
-
-This opens your `.Renviron` file which may be a blank file. Add this line somewhere in the file (if you change your path in the above download step, this must be changed here as well):
-
-``` r
-hydat = "C:/HYDAT_db"
-```
-
-It is important that you name the variable `hydat` as that is name of the variable that the functions are looking for.
+tidyhydat functions will automatically know where to look for HYDAT if you download HYDAT using this function.
 
 Usage
 -----
 
--   Open app.R file in R or RStudio and run the app.
-
-![](img/open_viewer.gif)
+-   Open app.R file in RStudio and run the app.
 
 ### License
 
