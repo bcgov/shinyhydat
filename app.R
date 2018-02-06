@@ -24,6 +24,11 @@ library(httr)
 library(DT)
 
 
+if(packageDescription("shiny")$Version != "1.0.3"){
+  stop('shinyhydat hydat currently support only shiny version 1.0.3. \nThat version can be download here: \ndevtools::install_version("shiny", version = "1.0.3")')
+}
+
+
 ## Create a dataframe of all station metadata and a list of all stations
 stations <- hy_stations(prov_terr_state_loc = "BC") %>%  #c("AB","BC","SK","MB","ON","QC","NB","NS","PE","NL","YT","NT","NU")
   left_join(hy_agency_list(), by = c("CONTRIBUTOR_ID" = "AGENCY_ID")) %>% rename("CONTRIBUTOR"=AGENCY_EN) %>% 
