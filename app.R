@@ -41,7 +41,7 @@ stations <- hy_stations(prov_terr_state_loc = "BC") %>%  #c("AB","BC","SK","MB",
          REAL_TIME,REGULATED,CONTRIBUTOR,OPERATOR,REGIONAL_OFFICE,DATUM)
 station.parameters <- hy_stn_data_range() %>% filter(DATA_TYPE=="Q"|DATA_TYPE=="H")  %>% 
   select(STATION_NUMBER,DATA_TYPE) %>% spread(DATA_TYPE,DATA_TYPE) %>% 
-  mutate(PARAMETER=ifelse(is.na(H),"FLOW",ifelse(is.na(Q),"LEVEL",paste("FLOW AND LEVEL"))))
+  mutate(PARAMETER=ifelse(is.na(H),"Flow",ifelse(is.na(Q),"Level",paste("Flow and Level"))))
 stations <- left_join(stations,station.parameters %>% select(STATION_NUMBER,PARAMETER),by="STATION_NUMBER") 
 
 stations.list <- as.list(stations$STATION_NUMBER)
@@ -615,16 +615,16 @@ server <- function(input, output, session) {
   dailyDataHYDAT <- reactive({
     
     # extract flow or water level data depending on what is available
-    if (metaData()[4,2]=="FLOW AND LEVEL") { # both Q and H
+    if (metaData()[4,2] == "Flow and Level") { # both Q and H
       daily.flow.HYDAT <- hy_daily_flows(station_number = values$station)
       daily.levels.HYDAT <- hy_daily_levels(station_number = values$station)
-      daily.data <- rbind(daily.flow.HYDAT[,c(2:5)], daily.levels.HYDAT[,c(2:5)])
-    } else if (metaData()[4,2]=="FLOW") { # just Q
+      daily.data <- rbind(daily.flow.HYDAT[ ,c(2:5)], daily.levels.HYDAT[ ,c(2:5)])
+    } else if (metaData()[4,2] == "Flow") { # just Q
       daily.flow.HYDAT <- hy_daily_flows(station_number = values$station)
-      daily.data <- daily.flow.HYDAT[,c(2:5)]
-    } else if (metaData()[4,2]=="LEVEL") { # just H
+      daily.data <- daily.flow.HYDAT[ ,c(2:5)]
+    } else if (metaData()[4,2] == "Level") { # just H
       daily.levels.HYDAT <- hy_daily_levels(station_number = values$station)
-      daily.data <- daily.levels.HYDAT[,c(2:5)]
+      daily.data <- daily.levels.HYDAT[ ,c(2:5)]
     }
     daily.data
   })
@@ -713,26 +713,26 @@ server <- function(input, output, session) {
     
     if (length(input$ltParam)==2) { # Plot if both flow and water level
       plot <-  plot_ly() %>%
-        add_lines(data = plot.data %>% filter(Parameter == "FLOW"), x = ~Date, y = ~Value, name = "Discharge", hoverinfo = 'text',
+        add_lines(data = plot.data %>% filter(Parameter == "Flow"), x = ~Date, y = ~Value, name = "Discharge", hoverinfo = 'text',
                   text = ~paste('Discharge: ', Value, "cms", Symbol, '\nDate: ', Date),
                   line = list(color = 'rgba(31, 119, 180, 1)')) %>%
-        add_lines(data = plot.data %>% filter(Parameter == "LEVEL"), x = ~Date, y = ~Value, name = "Water Level", hoverinfo = 'text',
+        add_lines(data = plot.data %>% filter(Parameter == "Level"), x = ~Date, y = ~Value, name = "Water Level", hoverinfo = 'text',
                   text = ~paste('Water Level: ', Value, "m", Symbol, '\nDate: ', Date), 
                   line = list(color = 'rgba(255, 127, 14, 1)'), yaxis = "y2") %>%
         layout(xaxis = list(title = "Date"),
                yaxis = ltplot.y(),
                yaxis2 = list(overlaying = "y", side = "right", title = "Water Level (m)"))} 
-    else if (length(input$ltParam) == 1 & input$ltParam == "FLOW") { # Plot if just flow
+    else if (length(input$ltParam) == 1 & input$ltParam == "Flow") { # Plot if just flow
       plot <- plot_ly() %>%
-        add_lines(data = plot.data %>% filter(Parameter == "FLOW"), x = ~Date, y = ~Value, name = "Discharge", hoverinfo = 'text',
+        add_lines(data = plot.data %>% filter(Parameter == "Flow"), x = ~Date, y = ~Value, name = "Discharge", hoverinfo = 'text',
                   text = ~paste('Discharge: ', Value, "cms", Symbol, '\nDate: ', Date),
                   line = list(color = 'rgba(31, 119, 180, 1)')) %>%
         layout(xaxis = list(title = "Date"),
                yaxis = ltplot.y(),
                showlegend = TRUE)}
-    else if (length(input$ltParam) == 1 & input$ltParam == "LEVEL") { # Plot if just water level
+    else if (length(input$ltParam) == 1 & input$ltParam == "Level") { # Plot if just water level
       plot <-plot_ly() %>%
-        add_lines(data = plot.data %>% filter(Parameter == "LEVEL"), x = ~Date, y = ~Value, name = "Water Level", hoverinfo = 'text',
+        add_lines(data = plot.data %>% filter(Parameter == "Level"), x = ~Date, y = ~Value, name = "Water Level", hoverinfo = 'text',
                   text = ~paste('Water Level: ', Value, "m", Symbol, '\nDate: ', Date), 
                   line = list(color = 'rgba(255, 127, 14, 1)')) %>%
         layout(xaxis = list(title = "Date"),
@@ -754,19 +754,19 @@ server <- function(input, output, session) {
                                    Month=as.character(format(Date,'%B'))) %>%
       select(Date,Year,Month,Parameter,Value,Symbol)
     
-    if (metaData()[4,2]=="FLOW AND LEVEL") { # both Q and H
-      data.flow <- data %>% filter(Parameter=="FLOW") %>% 
+    if (metaData()[4,2]=="Flow and Level") { # both Q and H
+      data.flow <- data %>% filter(Parameter=="Flow") %>% 
         mutate("Flow (cms)"=Value,"Flow Symbol"=Symbol)%>%
         select(-Parameter,-Value,-Symbol)
-      data.level <- data %>% filter(Parameter=="LEVEL") %>% 
+      data.level <- data %>% filter(Parameter=="Level") %>% 
         mutate("Water Level (m)"=Value,"Water Level Symbol"=Symbol)%>%
         select(-Parameter,-Value,-Symbol)
       table.data <- merge(data.flow,data.level,by=c("Date","Year","Month"),all=TRUE) 
-    } else if (metaData()[4,2]=="FLOW") { # just Q
+    } else if (metaData()[4,2]=="Flow") { # just Q
       table.data <- data %>% 
         rename("Flow (cms)"=Value,"Flow Symbol"=Symbol) %>%
         select(-Parameter)
-    } else if (metaData()[4,2]=="LEVEL") { # just H
+    } else if (metaData()[4,2]=="Level") { # just H
       table.data <- data %>% 
         rename("Water Level (m)"=Value,"Water Level Symbol"=Symbol) %>%
         select(-Parameter)
@@ -818,8 +818,8 @@ server <- function(input, output, session) {
     
     annual <- hy_annual_stats(station_number=values$station) %>% 
       filter(Parameter=="Flow" | Parameter == "Water Level") %>% 
-      mutate(Parameter=replace(Parameter, Parameter=="Flow", "FLOW"),
-             Parameter=replace(Parameter, Parameter=="Water Level", "LEVEL"))
+      mutate(Parameter=replace(Parameter, Parameter=="Flow", "Flow"),
+             Parameter=replace(Parameter, Parameter=="Water Level", "Level"))
     
     # Fill in missing years with NA
     annual.data <- annual[0,]
@@ -853,8 +853,8 @@ server <- function(input, output, session) {
              Time=paste0(HOUR,":",ifelse(nchar(MINUTE)>1,paste(MINUTE),paste0(0,MINUTE))," ",TIME_ZONE),
              DateTime=paste0(Date," at ",Time),
              Symbol=replace(Symbol, is.na(Symbol), ""),
-             Parameter=replace(Parameter, Parameter=="Flow", "FLOW"),
-             Parameter=replace(Parameter, Parameter=="Water Level", "LEVEL"),
+             Parameter=replace(Parameter, Parameter=="Flow", "Flow"),
+             Parameter=replace(Parameter, Parameter=="Water Level", "Level"),
              Value=round(Value,3)) %>% 
       filter(YEAR >= input$histYears[1] & YEAR <= input$histYears[2])
     annual.instant
@@ -893,8 +893,8 @@ server <- function(input, output, session) {
   
   # Plot the primary y-axis on log-scale if checked
   annualPlot.y <- reactive({
-    if (input$annuallog) {list(title=ifelse(input$annualParam== "FLOW","Discharge (cms)","Water Level (m)"),type= "log")}
-    else {                list(title=ifelse(input$annualParam== "FLOW","Discharge (cms)","Water Level (m)"))}
+    if (input$annuallog) {list(title=ifelse(input$annualParam== "Flow","Discharge (cms)","Water Level (m)"),type= "log")}
+    else {                list(title=ifelse(input$annualParam== "Flow","Discharge (cms)","Water Level (m)"))}
   })
   
   # Create the annual plot
@@ -950,8 +950,8 @@ server <- function(input, output, session) {
       bind_rows(annInstData() %>% select(YEAR,Parameter,PEAK_CODE,Value,Date,Time,Symbol) %>% 
                   mutate(PEAK_CODE=replace(PEAK_CODE, PEAK_CODE=="MAX", "INST. MAX"),
                          PEAK_CODE=replace(PEAK_CODE, PEAK_CODE=="MIN", "INST. MIN"),
-                         Parameter=replace(Parameter, Parameter=="Flow", "FLOW"),
-                         Parameter=replace(Parameter, Parameter=="Water Level", "LEVEL"),
+                         Parameter=replace(Parameter, Parameter=="Flow", "Flow"),
+                         Parameter=replace(Parameter, Parameter=="Water Level", "Level"),
                          Value=round(Value,3)) %>% 
                   rename("Year"=YEAR,"Sum_stat"=PEAK_CODE)),
     rownames=FALSE,
@@ -1052,21 +1052,21 @@ server <- function(input, output, session) {
   # Extract the HYDAT data for table and download button
   HYDATmonthData <- reactive({
     
-    if (metaData()[4,2]=="FLOW AND LEVEL") { # both Q and H
-      monthly.flows.hydat <- hy_monthly_flows(station_number=values$station) %>%
-        mutate(Parameter="FLOW")
-      monthly.levels.hydat <- hy_monthly_levels(station_number=values$station) %>%
-        select(-PRECISION_CODE) %>% mutate(Parameter="LEVEL")
+    if (metaData()[4,2] == "Flow and Level") { # both Q and H
+      monthly.flows.hydat <- hy_monthly_flows(station_number = values$station) %>%
+        mutate(Parameter = "Flow")
+      monthly.levels.hydat <- hy_monthly_levels(station_number = values$station) %>%
+        select(-PRECISION_CODE) %>% mutate(Parameter = "Level")
       monthly.data <- rbind(monthly.flows.hydat,monthly.levels.hydat) %>%
-        select(Parameter,YEAR,MONTH,Sum_stat,Value,Date_occurred)
-    } else if (metaData()[4,2]=="FLOW") { # just Q
+        select(Parameter, YEAR, MONTH, Sum_stat, Value, Date_occurred)
+    } else if (metaData()[4,2]=="Flow") { # just Q
       monthly.flows.hydat <- hy_monthly_flows(station_number=values$station) %>%
-        mutate(Parameter="FLOW")
+        mutate(Parameter="Flow")
       monthly.data <- monthly.flows.hydat %>%
         select(Parameter,YEAR,MONTH,Sum_stat,Value,Date_occurred)
-    } else if (metaData()[4,2]=="LEVEL") { # just H
+    } else if (metaData()[4,2]=="Level") { # just H
       monthly.levels.hydat <- hy_monthly_levels(station_number=values$station) %>%
-        select(-PRECISION_CODE) %>% mutate(Parameter="LEVEL")
+        select(-PRECISION_CODE) %>% mutate(Parameter="Level")
       monthly.data <- monthly.levels.hydat %>%
         select(Parameter,YEAR,MONTH,Sum_stat,Value,Date_occurred)
     }
@@ -1119,8 +1119,8 @@ server <- function(input, output, session) {
   
   # Plot the primary-Yaxis on log-scale if checked
   monthlyPlot.y <- reactive({
-    if (input$monthlog) {list(title=ifelse(input$monthParam== "FLOW","Discharge (cms)","Water Level (m)"),type= "log")}
-    else {               list(title=ifelse(input$monthParam== "FLOW","Discharge (cms)","Water Level (m)"))}
+    if (input$monthlog) {list(title=ifelse(input$monthParam== "Flow","Discharge (cms)","Water Level (m)"),type= "log")}
+    else {               list(title=ifelse(input$monthParam== "Flow","Discharge (cms)","Water Level (m)"))}
   })
   
   #Create and render the monthly plot
@@ -1387,8 +1387,8 @@ server <- function(input, output, session) {
   
   # Plot the primary-Yaxis on log-scale if checked
   dailyPlot.y <- reactive({
-    if (input$dailylog) {list(title=ifelse(input$dailyParam== "FLOW","Discharge (cms)","Water Level (m)"),type= "log")} 
-    else {               list(title=ifelse(input$dailyParam== "FLOW","Discharge (cms)","Water Level (m)"))}
+    if (input$dailylog) {list(title=ifelse(input$dailyParam== "Flow","Discharge (cms)","Water Level (m)"),type= "log")} 
+    else {               list(title=ifelse(input$dailyParam== "Flow","Discharge (cms)","Water Level (m)"))}
   })
   
   #Create and render the daily summary plot
@@ -1540,11 +1540,11 @@ server <- function(input, output, session) {
     realtime.HYDAT <- realtime_dd(station_number = values$station)#values$station
     
     # Remove FLOW OR LEVEL if there either are all NA
-    realtime.FLOW <- realtime.HYDAT %>% filter(Parameter=="FLOW")
+    realtime.FLOW <- realtime.HYDAT %>% filter(Parameter=="Flow")
     if ((realtime.FLOW %>% summarise(n=sum(!is.na(Value))))==0){
       realtime.FLOW <- realtime.FLOW[0,]
     }
-    realtime.LEVEL <- realtime.HYDAT %>% filter(Parameter=="LEVEL")
+    realtime.LEVEL <- realtime.HYDAT %>% filter(Parameter=="Level")
     if ((realtime.LEVEL %>% summarise(n=sum(!is.na(Value))))==0){
       realtime.LEVEL <- realtime.LEVEL[0,]
     }
@@ -1627,7 +1627,7 @@ server <- function(input, output, session) {
     plot <- plot_ly()
     
     ## Add historical daily data layers behind real-time data if select
-    if (input$rtHistoric & (length(input$rtParam)==1 | input$rtHistParam=="FLOW")){
+    if (input$rtHistoric & (length(input$rtParam)==1 | input$rtHistParam=="Flow")){
       if ("Max-Min Range" %in% input$rtHistStats){
         plot <- plot %>%  add_ribbons(data=rtHistoricData() %>% filter(Parameter==input$rtHistParam),
                                       x= ~DateTime,ymin= ~Minimum, ymax= ~Maximum,name="Historic Max-Min Range",
@@ -1656,7 +1656,7 @@ server <- function(input, output, session) {
                                     x= ~DateTime,y=~Median,name="Historic Daily Median",
                                     hoverinfo= 'text',text=~paste0('Median: ',Median,'\n',MonthDay),
                                     line=list(color='rgba(143,53,151, 1)'))}
-    } else if (input$rtHistoric & length(input$rtParam)==2 & input$rtHistParam=="LEVEL"){
+    } else if (input$rtHistoric & length(input$rtParam)==2 & input$rtHistParam=="Level"){
       if ("Max-Min Range" %in% input$rtHistStats){
         plot <- plot %>%  add_ribbons(data=rtHistoricData() %>% filter(Parameter==input$rtHistParam)
                                       ,x= ~DateTime,ymin= ~Minimum, ymax= ~Maximum,name="Historic Max-Min Range",
@@ -1690,26 +1690,26 @@ server <- function(input, output, session) {
     # Add real-time data layers
     if (length(input$rtParam)==2) { #If both flow and water level
       plot <- plot %>%
-        add_lines(data=realtimeData() %>% filter(Parameter=="FLOW"),x= ~DateTime,y= ~Value, name="Instantaneous Discharge",
+        add_lines(data=realtimeData() %>% filter(Parameter=="Flow"),x= ~DateTime,y= ~Value, name="Instantaneous Discharge",
                   hoverinfo= 'text',text=~paste0('Inst. Discharge: ',Value,"cms",'\n',DateTime),
                   line=list(color='rgba(31, 119, 180, 1)')) %>% 
-        add_lines(data=realtimeData() %>% filter(Parameter=="LEVEL"),x= ~DateTime,y= ~Value, name="Instantaneous Water Level",
+        add_lines(data=realtimeData() %>% filter(Parameter=="Level"),x= ~DateTime,y= ~Value, name="Instantaneous Water Level",
                   hoverinfo= 'text',text=~paste0('Inst. Water Level: ',Value,"m",'\n',DateTime), 
                   line=list(color='rgba(255, 127, 14, 1)'),yaxis = "y2") %>% 
         layout(xaxis=list(title="Date"),
                yaxis=rtplot.y(),
                yaxis2 = list(overlaying = "y",side = "right",title = "Water Level (m)"))}
-    else if (length(input$rtParam)==1 & input$rtParam=="FLOW") { #if just flow data
+    else if (length(input$rtParam)==1 & input$rtParam=="Flow") { #if just flow data
       plot <- plot %>%
-        add_lines(data=realtimeData() %>% filter(Parameter=="FLOW"),x= ~DateTime,y= ~Value, name="Instantaneous Discharge",
+        add_lines(data=realtimeData() %>% filter(Parameter=="Flow"),x= ~DateTime,y= ~Value, name="Instantaneous Discharge",
                   hoverinfo= 'text',text=~paste0('Inst. Discharge: ',Value,"cms",'\n',DateTime),
                   line=list(color='rgba(31, 119, 180, 1)')) %>% 
         layout(xaxis=list(title="Date"),
                yaxis=rtplot.y(),
                showlegend = TRUE)} 
-    else if (length(input$rtParam)==1 & input$rtParam=="LEVEL") { # if just level data
+    else if (length(input$rtParam)==1 & input$rtParam=="Level") { # if just level data
       plot <- plot %>%
-        add_lines(data=realtimeData() %>% filter(Parameter=="LEVEL"),x= ~DateTime,y= ~Value, name="Instantaneous Water Level",
+        add_lines(data=realtimeData() %>% filter(Parameter=="Level"),x= ~DateTime,y= ~Value, name="Instantaneous Water Level",
                   hoverinfo= 'text',text=~paste0('Inst. Water Level: ',Value,"m",'\nDate/Time: ',DateTime),
                   line=list(color='rgba(255, 127, 14, 1)')) %>% 
         layout(xaxis=list(title="Date"),
@@ -1718,7 +1718,7 @@ server <- function(input, output, session) {
     if (input$rtLTMEAN){
       plot <- plot %>% 
         add_lines(x=c(min(realtimeData()$DateTime),max(realtimeData()$DateTime)),
-                  y=mean(realtimeData() %>% filter(Parameter=="FLOW") %>% select(Value),na.rm = TRUE))
+                  y=mean(realtimeData() %>% filter(Parameter=="Flow") %>% select(Value),na.rm = TRUE))
     }
     
     
@@ -1731,19 +1731,19 @@ server <- function(input, output, session) {
       mutate(DateTime=format.Date(DateTime, method = 'toISOString'))
     
     
-    if ("FLOW" %in% data$Parameter & "LEVEL" %in% data$Parameter) { # both Q and H
-      data.flow <- data %>% filter(Parameter=="FLOW") %>% 
+    if ("Flow" %in% data$Parameter & "Level" %in% data$Parameter) { # both Q and H
+      data.flow <- data %>% filter(Parameter=="Flow") %>% 
         mutate("Flow (cms)"=Value)%>%
         select(-Parameter,-Value)
-      data.level <- data %>% filter(Parameter=="LEVEL") %>% 
+      data.level <- data %>% filter(Parameter=="Level") %>% 
         mutate("Water Level (m)"=Value)%>%
         select(-Parameter,-Value)
       table.data <- merge(data.flow,data.level,by=c("DateTime"),all=TRUE) 
-    } else if ("FLOW" %in% data$Parameter & !("LEVEL" %in% data$Parameter)) { # just Q
+    } else if ("Flow" %in% data$Parameter & !("Level" %in% data$Parameter)) { # just Q
       table.data <- data %>% 
         rename("Flow (cms)"=Value) %>%
         select(-Parameter)
-    } else if (!("FLOW" %in% data$Parameter) & "LEVEL" %in% data$Parameter) { # just H
+    } else if (!("Flow" %in% data$Parameter) & "Level" %in% data$Parameter) { # just H
       table.data <- data %>% 
         rename("Water Level (m)"=Value) %>%
         select(-Parameter)
