@@ -1,4 +1,4 @@
-# Copyright 2017 Province of British Columbia
+# Copyright 2018 Province of British Columbia
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,7 +12,7 @@
 
 
 
-library(shiny) ## <1.0.4 dplyr
+library(shiny)
 library(shinydashboard)
 library(shinyWidgets)
 library(dplyr) ## >0.7.0 dplyr
@@ -22,11 +22,6 @@ library(tidyhydat)
 library(plotly)
 library(httr)
 library(DT)
-
-
-if(packageDescription("shiny")$Version != "1.0.3"){
-  stop('shinyhydat hydat currently support only shiny version 1.0.3. \nThat version can be download here: \ndevtools::install_version("shiny", version = "1.0.3")')
-}
 
 
 ## Create a dataframe of all station metadata and a list of all stations
@@ -75,7 +70,7 @@ ui <- dashboardPage(
   ),
   dashboardBody(
     fluidPage(
-      tabBox("TITLE",width = 12,
+      tabBox(width = 12,
              tabPanel("Station Listings",
                       fluidRow(column(width = 8,
                                       helpText("Search for a station by entering all or part of a station name, number, or 
