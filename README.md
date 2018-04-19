@@ -23,8 +23,7 @@ install.packages("leaflet")
 install.packages("plotly")
 install.packages("devtools")
 install.packages("shinyWidgets")
-
-devtools::install_version("shiny", version = "1.0.3") # 1.0.3 shiny
+install.packages("shiny")
 ```
 
 ### HYDAT download
