@@ -15,6 +15,8 @@
 # Add "Download" text to buttons
 # RT Display long-term mean
 # add column to meta with dates, so filter for dates   left_join(hy_stn_data_range(), by = "STATION_NUMBER") %>% 
+# table select station
+# inst. peak not working
 
 
 
@@ -51,10 +53,18 @@ stations_all <- hy_stations(prov_terr_state_loc = prov_list) %>%  #
   left_join(hy_stn_regulation(), by = "STATION_NUMBER") %>% 
   select(STATION_NUMBER, STATION_NAME, PROV_TERR_STATE_LOC, HYD_STATUS, LATITUDE, LONGITUDE, DRAINAGE_AREA_GROSS, RHBN, 
          REAL_TIME, REGULATED, CONTRIBUTOR, OPERATOR, REGIONAL_OFFICE, DATUM)
+station_date_range <- hy_stn_data_range() %>% 
+  rename(Record_Length = RECORD_LENGTH) %>% 
+  filter(DATA_TYPE %in% c("Q","H")) %>% 
+  pivot_longer(cols = 4:6) %>% 
+  mutate(name2 = paste0(ifelse(DATA_TYPE == "Q","Flow_","Level_"), name)) %>% 
+  select(-DATA_TYPE, -SED_DATA_TYPE, -name) %>% 
+  pivot_wider(names_from = name2, values_from = value)
 station_parameters <- hy_stn_data_range() %>% filter(DATA_TYPE == "Q" | DATA_TYPE == "H")  %>% 
   select(STATION_NUMBER, DATA_TYPE) %>% spread(DATA_TYPE, DATA_TYPE) %>% 
   mutate(PARAMETER=ifelse(is.na(H), "Flow", ifelse(is.na(Q), "Level", paste("Flow and Level"))))
-stations_all <- left_join(stations_all, station_parameters %>% select(STATION_NUMBER, PARAMETER), by = "STATION_NUMBER") 
+stations_all <- left_join(stations_all, station_parameters %>% select(STATION_NUMBER, PARAMETER), by = "STATION_NUMBER") %>% 
+  left_join(station_date_range, by = "STATION_NUMBER")
 
 stations_list <- as.list(unique(stations_all$STATION_NUMBER))
 
@@ -421,12 +431,16 @@ server <- function(input, output, session) {
     
     stn.meta.HYDAT <- stations_all %>% filter(STATION_NUMBER == stations_list)
     
-    stn.info <-stn.meta.HYDAT[ ,c(1:3,15,4,7:13)] %>% 
+    stn.info <-stn.meta.HYDAT %>% #[ ,c(1:3,15,4,7:13)] %>% 
       mutate(DRAINAGE_AREA_GROSS = round(DRAINAGE_AREA_GROSS, 2)) %>% 
-      rename("Station Number" = STATION_NUMBER, "Station Name" = STATION_NAME, "Prov/ Terr/ State" = PROV_TERR_STATE_LOC,
-             "Station Status" = HYD_STATUS,"Parameter" = PARAMETER, "Drainage Area (sq km)" = DRAINAGE_AREA_GROSS, "Reference (RHBN)" = RHBN,
-             "Real-Time" = REAL_TIME, "Contributor" = CONTRIBUTOR, "Operator" = OPERATOR, "Regional Office" = REGIONAL_OFFICE,
-             "Regulated" = REGULATED)
+      select("Station Number" = STATION_NUMBER, "Station Name" = STATION_NAME, 
+             "Prov/ Terr/ State" = PROV_TERR_STATE_LOC, "Parameter" = PARAMETER, 
+             "Station Status" = HYD_STATUS,"Drainage Area (sq km)" = DRAINAGE_AREA_GROSS, 
+             "Regulated" = REGULATED, "Reference (RHBN)" = RHBN, "Real-Time" = REAL_TIME, 
+             "Flow Year From" = Flow_Year_from, "Flow Year To" = Flow_Year_to, "Flow Record Length" = Flow_Record_Length,
+             "Level Year From" = Level_Year_from, "Level Year To" = Level_Year_to, "Level Record Length" = Level_Record_Length,
+             "Contributor" = CONTRIBUTOR, "Operator" = OPERATOR, 
+             "Regional Office" = REGIONAL_OFFICE)
   }) 
   
   output$allstationsTableOut <- DT::renderDataTable(
