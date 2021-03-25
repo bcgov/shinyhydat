@@ -10,7 +10,18 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and limitations under the License.
 
+# fix adding years to plots
+# water year month to plot
+# Add "Download" text to buttons
+# RT Display long-term mean
+# add column to meta with dates, so filter for dates   left_join(hy_stn_data_range(), by = "STATION_NUMBER") %>% 
 
+
+
+default_station <- "08NM116"
+
+prov_list <- c("AB","BC","SK","MB","ON","QC","NB","NS","PE","NL","YT","NT","NU") 
+  #"BC"
 
 library(shiny)
 library(shinydashboard)
@@ -22,24 +33,30 @@ library(tidyhydat)
 library(plotly)
 library(httr)
 library(DT)
+library(shinycssloaders)
 
+options(shiny.sanitize.errors = TRUE)
 
 ## Create a dataframe of all station metadata and a list of all stations
-stations <- hy_stations(prov_terr_state_loc = "BC") %>%  #c("AB","BC","SK","MB","ON","QC","NB","NS","PE","NL","YT","NT","NU")
-  left_join(hy_agency_list(), by = c("CONTRIBUTOR_ID" = "AGENCY_ID")) %>% rename("CONTRIBUTOR"=AGENCY_EN) %>% 
-  left_join(hy_agency_list(), by = c("OPERATOR_ID" = "AGENCY_ID")) %>%  rename("OPERATOR"=AGENCY_EN) %>% 
-  left_join(hy_datum_list(), by = c("DATUM_ID" = "DATUM_ID")) %>% rename("DATUM"=DATUM_EN) %>% 
+stations_all <- hy_stations(prov_terr_state_loc = prov_list) %>%  #
+  left_join(hy_agency_list(), by = c("CONTRIBUTOR_ID" = "AGENCY_ID")) %>% 
+  rename("CONTRIBUTOR" = AGENCY_EN) %>% 
+  left_join(hy_agency_list(), by = c("OPERATOR_ID" = "AGENCY_ID")) %>%  
+  rename("OPERATOR" = AGENCY_EN) %>% 
+  left_join(hy_datum_list(), by = c("DATUM_ID" = "DATUM_ID")) %>% 
+  rename("DATUM" = DATUM_EN) %>% 
   mutate(REGIONAL_OFFICE_ID = as.integer(REGIONAL_OFFICE_ID)) %>% 
-  left_join(hy_reg_office_list(), by = c("REGIONAL_OFFICE_ID" = "REGIONAL_OFFICE_ID")) %>% rename("REGIONAL_OFFICE"=REGIONAL_OFFICE_NAME_EN) %>% 
-  left_join(hy_stn_regulation(), by="STATION_NUMBER") %>% 
-  select(STATION_NUMBER,STATION_NAME,PROV_TERR_STATE_LOC,HYD_STATUS,LATITUDE,LONGITUDE,DRAINAGE_AREA_GROSS,RHBN,
-         REAL_TIME,REGULATED,CONTRIBUTOR,OPERATOR,REGIONAL_OFFICE,DATUM)
-station.parameters <- hy_stn_data_range() %>% filter(DATA_TYPE=="Q"|DATA_TYPE=="H")  %>% 
-  select(STATION_NUMBER,DATA_TYPE) %>% spread(DATA_TYPE,DATA_TYPE) %>% 
-  mutate(PARAMETER=ifelse(is.na(H),"Flow",ifelse(is.na(Q),"Level",paste("Flow and Level"))))
-stations <- left_join(stations,station.parameters %>% select(STATION_NUMBER,PARAMETER),by="STATION_NUMBER") 
+  left_join(hy_reg_office_list(), by = c("REGIONAL_OFFICE_ID" = "REGIONAL_OFFICE_ID")) %>% 
+  rename("REGIONAL_OFFICE" = REGIONAL_OFFICE_NAME_EN) %>% 
+  left_join(hy_stn_regulation(), by = "STATION_NUMBER") %>% 
+  select(STATION_NUMBER, STATION_NAME, PROV_TERR_STATE_LOC, HYD_STATUS, LATITUDE, LONGITUDE, DRAINAGE_AREA_GROSS, RHBN, 
+         REAL_TIME, REGULATED, CONTRIBUTOR, OPERATOR, REGIONAL_OFFICE, DATUM)
+station_parameters <- hy_stn_data_range() %>% filter(DATA_TYPE == "Q" | DATA_TYPE == "H")  %>% 
+  select(STATION_NUMBER, DATA_TYPE) %>% spread(DATA_TYPE, DATA_TYPE) %>% 
+  mutate(PARAMETER=ifelse(is.na(H), "Flow", ifelse(is.na(Q), "Level", paste("Flow and Level"))))
+stations_all <- left_join(stations_all, station_parameters %>% select(STATION_NUMBER, PARAMETER), by = "STATION_NUMBER") 
 
-stations.list <- as.list(stations$STATION_NUMBER)
+stations_list <- as.list(unique(stations_all$STATION_NUMBER))
 
 
 #######################################################################################
@@ -60,11 +77,11 @@ ui <- dashboardPage(
          historical data, and real-time data, if available. A locally saved SQLite HYDAT database file is required."),
       br(),
       h4("HYDAT versions:"),
-      textOutput("localHYDAT"),
-      textOutput("onlineHYDAT"),br(),br(),
+      textOutput("local_HYDAT_vers"),
+      textOutput("online_HYDAT_vers"),br(),br(),
       textOutput("test")#,
       #actionButton("downloadHYDAT","Download HYDAT")  #NEED TO MOVE QUESTION FROM CONSOLE TO WINDOW
-      )
+    )
     
     
   ),
@@ -83,18 +100,18 @@ ui <- dashboardPage(
                                                on the 'Stations Map' tab, click the button to the right. To clear any 
                                                filters on the map, clear all filters in the table and re-click the button.")),
                                column(width=2,
-                                      downloadButton('download.stations', 'Download Filtered Table'),br(),br(),
+                                      downloadButton('downloadStationsOut', 'Download Filtered Table'),br(),br(),
                                       actionButton('stationsMapAdd', 'Show Filtered Stations on Map')
                                )),
                       br(),
-                      DT::dataTableOutput("allstationsTable")
+                      shinycssloaders::withSpinner(DT::dataTableOutput("allstationsTableOut"))
                       
-                                      ),
+             ),
              tabPanel("Stations Map",
                       br(),
                       fluidPage(column(width=8,
                                        # tags$style(type = "text/css", "#map {height: calc(100vh - 170px) !important;}"),
-                                       leafletOutput("map",width="100%",height="650px")),
+                                       shinycssloaders::withSpinner(leafletOutput("map",width="100%",height="650px"))),
                                 column(width=4,
                                        box(width=12,status = "primary",
                                            h4("Map Settings"),br(),
@@ -102,7 +119,7 @@ ui <- dashboardPage(
                                                        choices = c("None","Station Status"="HYD_STATUS",
                                                                    "Reference (RHBN)"="RHBN",
                                                                    "Real-time"="REAL_TIME",
-                                                                   "Regulation"="REGULATED",
+                                                                   "Regulated"="REGULATED",
                                                                    "Data Type"="PARAMETER"),
                                                        selected = "None"),
                                            checkboxInput("mapSelected","Display selected station",
@@ -114,10 +131,10 @@ ui <- dashboardPage(
                       br(),
                       fluidRow(column(width = 6,
                                       box(width=12,title="Station Information",status = "primary",solidHeader = TRUE,
-                                          tableOutput("metaTable"))),
+                                          shinycssloaders::withSpinner(tableOutput("metaTable")))),
                                column(width = 6,
                                       box(width=12,background="light-blue",
-                                          leafletOutput("stnmap"))))),
+                                          shinycssloaders::withSpinner(leafletOutput("stnmap")))))),
              tabPanel("Historical Data",
                       fluidRow(column(width=4,
                                       selectInput("histView",
@@ -136,7 +153,8 @@ ui <- dashboardPage(
                         fluidRow(
                           tabBox(width = 12,
                                  tabPanel("Graph",
-                                          fluidRow(column(width=12,plotlyOutput('ltplot'))),
+                                          fluidRow(column(width=12,
+                                                          shinycssloaders::withSpinner(plotlyOutput('ltplot')))),
                                           br(),br(),
                                           fluidRow(box(width = 6,title = "Graph Options",status = "primary",
                                                        fluidRow(column(width=5,
@@ -176,7 +194,8 @@ ui <- dashboardPage(
                           tabBox(width = 12,
                                  tabPanel("Graph",
                                           fluidRow(column(width=12)),
-                                          fluidRow(column(width=12,plotlyOutput('annualPlot'))),
+                                          fluidRow(column(width=12,
+                                                          shinycssloaders::withSpinner(plotlyOutput('annualPlot')))),
                                           h5("* Mean values produced only for years of complete data"),
                                           br(),br(),
                                           fluidRow(box(width = 6,title = "Graph Options",status = "primary",
@@ -210,10 +229,12 @@ ui <- dashboardPage(
                                  tabPanel("Graph",
                                           conditionalPanel(
                                             condition = "input.monthPlotType == 'Continuous'",
-                                            fluidRow(column(width=12,plotlyOutput('monthPlot')))),
+                                            fluidRow(column(width=12,
+                                                            shinycssloaders::withSpinner(plotlyOutput('monthPlot'))))),
                                           conditionalPanel(
                                             condition = "input.monthPlotType == 'Box Plot'",
-                                            fluidRow(column(width=12,plotlyOutput('monthPlot2'),
+                                            fluidRow(column(width=12,
+                                                            shinycssloaders::withSpinner(plotlyOutput('monthPlot2')),
                                                             h5("*** LIST WHAT THE BOXES ARE")))),
                                           h5("* Missing dates ignored"),
                                           br(),br(),
@@ -277,7 +298,8 @@ ui <- dashboardPage(
                         fluidRow(
                           tabBox(width = 12,
                                  tabPanel("Graph",
-                                          fluidRow(column(width=12,plotlyOutput('dailyPlot'))),
+                                          fluidRow(column(width=12,
+                                                          shinycssloaders::withSpinner(plotlyOutput('dailyPlot')))),
                                           br(),br(),
                                           fluidRow(box(width=9,title = "Graph Options",status = "primary",
                                                        fluidRow(column(width=3,hr(),
@@ -310,8 +332,10 @@ ui <- dashboardPage(
              ),
              # Real-time data
              tabPanel("Real-time Data",
-                      fluidRow(column(6, h4(textOutput("noRT")))),
-                      textOutput("rtExists"),tags$head(tags$style("#rtExists{color: white}")),
+                      #fluidRow(column(6)),
+                      conditionalPanel(
+                        condition = "output.rtExists=='No'",
+                        textOutput("noRT")),
                       conditionalPanel(
                         condition = "output.rtExists=='Yes'",
                         fluidRow(column(6,h4(textOutput("rtplot.title"))),
@@ -320,7 +344,8 @@ ui <- dashboardPage(
                         fluidRow(
                           tabBox(width = 12,
                                  tabPanel("Graph",
-                                          fluidRow(column(12,plotlyOutput('rtplot'))),
+                                          fluidRow(column(12,
+                                                          shinycssloaders::withSpinner(plotlyOutput('rtplot')))),
                                           br(),br(),
                                           fluidRow(box(width =8,title = "Graph Options",status = "primary",
                                                        fluidRow(column(5,hr(),
@@ -355,14 +380,16 @@ ui <- dashboardPage(
                                                                 ))))),
                                  tabPanel("Table",
                                           fluidRow(column(width=6,
-                                                          (DT::dataTableOutput("realtimeTable"))))))))),
+                                                          (DT::dataTableOutput("realtimeTable")))))))),
+                      textOutput("rtExists"),tags$head(tags$style("#rtExists{color: white}")),
+             ),
              # Station comparison
              tabPanel("Station Comparison",
                       h4("Under development"),icon("smile-o", lib = "font-awesome"))
-             )
       )
+    )
+  )
 )
-      )
 
 #######################################################################################
 # Set up the server (where all the magic happens)
@@ -370,41 +397,40 @@ ui <- dashboardPage(
 
 server <- function(input, output, session) {
   
+  
   ### Check HYDAT version ###
   ###########################
   
-  output$onlineHYDAT <- renderText({
+  output$online_HYDAT_vers <- renderText({
     base_url <- "http://collaboration.cmc.ec.gc.ca/cmc/hydrometrics/www/"
     x <- httr::GET(base_url)
     new_hydat <- substr(gsub(
       "^.*\\Hydat_sqlite3_", "",
       httr::content(x, "text")
     ), 1, 8)
-    paste0("Available: ",as.Date(new_hydat, "%Y%m%d"))
-    
+    paste0("Available: ", as.Date(new_hydat, "%Y%m%d"))
   })
-  output$localHYDAT <- renderText({
-    paste0("Local: ",as.Date(as.data.frame(hy_version())[,2]))
-    
+  output$local_HYDAT_vers <- renderText({
+    paste0("Local: ", as.Date(as.data.frame(hy_version())[,2]))
   })
   
   ### Setting up the Stations Listings ###
   ########################################
   
-  allstationsTable <- reactive({
+  allstationsTableReact <- reactive({
     
-    stn.meta.HYDAT <- stations %>% filter(STATION_NUMBER == stations.list)
+    stn.meta.HYDAT <- stations_all %>% filter(STATION_NUMBER == stations_list)
     
     stn.info <-stn.meta.HYDAT[ ,c(1:3,15,4,7:13)] %>% 
       mutate(DRAINAGE_AREA_GROSS = round(DRAINAGE_AREA_GROSS, 2)) %>% 
       rename("Station Number" = STATION_NUMBER, "Station Name" = STATION_NAME, "Prov/ Terr/ State" = PROV_TERR_STATE_LOC,
              "Station Status" = HYD_STATUS,"Parameter" = PARAMETER, "Drainage Area (sq km)" = DRAINAGE_AREA_GROSS, "Reference (RHBN)" = RHBN,
              "Real-Time" = REAL_TIME, "Contributor" = CONTRIBUTOR, "Operator" = OPERATOR, "Regional Office" = REGIONAL_OFFICE,
-             "Regulation" = REGULATED)
+             "Regulated" = REGULATED)
   }) 
   
-  output$allstationsTable <- DT::renderDataTable(
-    allstationsTable(), 
+  output$allstationsTableOut <- DT::renderDataTable(
+    allstationsTableReact(), 
     rownames = FALSE,
     selection = list(mode = "single"),
     filter = 'top',
@@ -416,22 +442,22 @@ server <- function(input, output, session) {
                    buttons= list(list(extend = 'colvis', columns = c(1:10))))
   ) 
   
-  proxy = DT::dataTableProxy('allstationsTable')   # Allows for updating the selected row from the select-widget and the map
+  proxy = DT::dataTableProxy('allstationsTableReact')   # Allows for updating the selected row from the select-widget and the map
   
   ## Format the station lists for download
-  downloadStationsList <- reactive({
-    list <- stations %>% 
+  downloadStationsListReact <- reactive({
+    list <- stations_all %>% 
       mutate(row = c(1:(n()))) %>% 
-      filter(row %in% input$allstationsTable_rows_all) %>% 
+      filter(row %in% input$allstationsTableReact_rows_all) %>% 
       select(-row)
     list
   })
   
   
-  output$download.stations <- downloadHandler(
+  output$downloadStationsOut <- downloadHandler(
     filename = function() {paste0("Stations_Table.csv")},
     content = function(file) {
-      write.csv(downloadStationsList(), file, row.names = FALSE, na = "")
+      write.csv(downloadStationsListReact(), file, row.names = FALSE, na = "")
     })
   
   
@@ -440,14 +466,14 @@ server <- function(input, output, session) {
   
   # Create reactive values$station to be selected by the selectbox, data.table and map click
   values <- reactiveValues()
-  values$station <- "08NM116"
+  values$station <- default_station
   
   output$test <- renderText({values$station})
   
   # Select station with widget
   output$stnSelect <- renderUI({
     selectizeInput("station", label = "Station Number:",
-                   choices = stations.list, 
+                   choices = stations_list, 
                    selected = values$station,
                    options = list(placeholder ="type station ID number", maxOptions = 2420 ))
   })
@@ -458,15 +484,15 @@ server <- function(input, output, session) {
   })
   
   # Select station by clicking on row in datatable
-  observeEvent(input$allstationsTable_rows_selected, {
-    isolate(values$station <- as.data.frame(allstationsTable())[input$allstationsTable_rows_selected,1])
+  observeEvent(input$allstationsTableReact_rows_selected, {
+    isolate(values$station <- as.data.frame(allstationsTableReact())[input$allstationsTableReact_rows_selected,1])
   })
   
   # Select station by clicking on station in map
   observeEvent(input$map_marker_click, {
     isolate(values$station <- input$map_marker_click$id)
     updateSelectizeInput(session, "station", selected = input$map_marker_click$id)
-    proxy %>% DT::selectRows(which(stations.list == values$station))
+    proxy %>% DT::selectRows(which(stations_list == values$station))
   })
   
   
@@ -474,12 +500,12 @@ server <- function(input, output, session) {
   ################################.
   
   output$map <- renderLeaflet({
-    leaflet(stations) %>% addTiles()%>% 
+    leaflet(stations_all) %>% addTiles()%>% 
       addCircleMarkers(layerId = "selected",
-                       data = filter(stations, STATION_NUMBER %in% values$station),
+                       data = filter(stations_all, STATION_NUMBER %in% values$station),
                        lng = ~LONGITUDE, lat = ~LATITUDE, 
                        color = "red", radius = 4) %>%
-      addCircleMarkers(data= stations, lng = ~LONGITUDE, lat = ~LATITUDE, layerId = ~STATION_NUMBER, 
+      addCircleMarkers(data= stations_all, lng = ~LONGITUDE, lat = ~LATITUDE, layerId = ~STATION_NUMBER, 
                        color = "blue", radius = 3, fillOpacity = .8, stroke = FALSE,
                        label = ~paste0(STATION_NAME, " (",STATION_NUMBER,") - ",HYD_STATUS)
                        #,clusterOptions = markerClusterOptions()
@@ -491,7 +517,7 @@ server <- function(input, output, session) {
     
     # set the radius size based on drainage area if selected
     if (input$mapRadius){
-      rad <- log(stations[["DRAINAGE_AREA_GROSS"]])
+      rad <- log(stations_all[["DRAINAGE_AREA_GROSS"]])
       rad2 <- rad+.5
     } else {
       rad <- 3
@@ -501,7 +527,7 @@ server <- function(input, output, session) {
     # if a color category is chosen, add the colors and legend
     if (input$mapColor != "None") {
       colorBy <- input$mapColor
-      colorData <- stations[[colorBy]]
+      colorData <- stations_all[[colorBy]]
       pal <- colorFactor(c("#4daf4a",
                            "#377eb8",
                            "#e41a1c",
@@ -511,12 +537,12 @@ server <- function(input, output, session) {
       leg.title <- ifelse(input$mapColor == "HYD_STATUS","Station Status",
                           ifelse(input$mapColor == "RHBN","Reference (RHBN)",
                                  ifelse(input$mapColor == "REAL_TIME","Real-time",
-                                        ifelse(input$mapColor == "REGULATED","Regulation",
+                                        ifelse(input$mapColor == "REGULATED","Regulated",
                                                ifelse(input$mapColor == "PARAMETER","Data Type")))))
       
       leafletProxy("map") %>%
         clearMarkers()%>% 
-        addCircleMarkers(data= stations, lng = ~LONGITUDE, lat = ~LATITUDE, layerId = ~STATION_NUMBER, 
+        addCircleMarkers(data= stations_all, lng = ~LONGITUDE, lat = ~LATITUDE, layerId = ~STATION_NUMBER, 
                          color = pal(colorData), radius = rad, stroke = FALSE, fillOpacity = .8,
                          label = ~paste0(STATION_NAME, " (",STATION_NUMBER,") - ",HYD_STATUS)) %>%
         addLegend("topright", pal = pal, values = colorData, title = leg.title,
@@ -525,7 +551,7 @@ server <- function(input, output, session) {
       leafletProxy("map") %>%
         clearMarkers()%>% 
         clearControls() %>% 
-        addCircleMarkers(data= stations, lng = ~LONGITUDE, lat = ~LATITUDE, layerId = ~STATION_NUMBER, 
+        addCircleMarkers(data= stations_all, lng = ~LONGITUDE, lat = ~LATITUDE, layerId = ~STATION_NUMBER, 
                          color = "blue", radius = rad, stroke = FALSE, fillOpacity = .8,
                          label = ~paste0(STATION_NAME, " (",STATION_NUMBER,") - ",HYD_STATUS))
     }
@@ -535,7 +561,7 @@ server <- function(input, output, session) {
       leafletProxy("map") %>%
         removeMarker(layerId = "selected") %>%
         addCircleMarkers(layerId = "selected",
-                         data = filter(stations, STATION_NUMBER == values$station),
+                         data = filter(stations_all, STATION_NUMBER == values$station),
                          lng = ~LONGITUDE,lat = ~LATITUDE,
                          color = "red", radius = rad2)
     } else {
@@ -551,7 +577,7 @@ server <- function(input, output, session) {
     leafletProxy("map") %>%
       clearMarkers() %>%
       clearControls() %>% 
-      addCircleMarkers(data= downloadStationsList(), 
+      addCircleMarkers(data= downloadStationsListReact(), 
                        lng = ~LONGITUDE, lat = ~LATITUDE, 
                        layerId = ~STATION_NUMBER, 
                        color = "blue", radius = 2,
@@ -565,7 +591,7 @@ server <- function(input, output, session) {
   # Filter and format table for chosen station (used for rendering output and looking up parameters)
   metaData <- reactive({
     
-    stn.meta.HYDAT <- stations %>% filter(STATION_NUMBER==values$station)
+    stn.meta.HYDAT <- stations_all %>% filter(STATION_NUMBER==values$station)
     
     stn.info <- stn.meta.HYDAT %>% 
       mutate("Historical Data Link" = paste0("https://wateroffice.ec.gc.ca/report/historical_e.html?stn=", STATION_NUMBER),
@@ -576,7 +602,7 @@ server <- function(input, output, session) {
       select(c(1:3,15,5,6,4,8:10,7,11:14,16:17)) %>% 
       rename("Station Number" = STATION_NUMBER,"Station Name" = STATION_NAME,"Prov/Terr/State"=PROV_TERR_STATE_LOC,
              "Station Status" = HYD_STATUS,"Parameter" = PARAMETER, "Latitude" = LATITUDE, "Longitude" = LONGITUDE, "Drainage Area (sq km)" = DRAINAGE_AREA_GROSS,
-             "Reference (RHBN)" = RHBN, "Real-Time" = REAL_TIME, "Regulation" = REGULATED, "Regional Office" = REGIONAL_OFFICE,
+             "Reference (RHBN)" = RHBN, "Real-Time" = REAL_TIME, "Regulated" = REGULATED, "Regional Office" = REGIONAL_OFFICE,
              "Contributor" = CONTRIBUTOR, "Operator" = OPERATOR, "Datum" = DATUM) %>% 
       gather("header","content",1:17)
     
@@ -589,9 +615,9 @@ server <- function(input, output, session) {
   
   # Render map of chosen station
   output$stnmap <- renderLeaflet({
-    leaflet(stations) %>% addTiles() %>%
+    leaflet(stations_all) %>% addTiles() %>%
       setView(lng = as.numeric(metaData()[6,2]), lat = as.numeric(metaData()[5,2]), zoom = 9) %>% # set centre and extent of map
-      addCircleMarkers(data = filter(stations, STATION_NUMBER %in% values$station), 
+      addCircleMarkers(data = filter(stations_all, STATION_NUMBER %in% values$station), 
                        lng = ~LONGITUDE, lat = ~LATITUDE, color = "red", radius = 6) %>%
       addCircles(lng = ~LONGITUDE, lat = ~LATITUDE, weight = 1,
                  radius = 1, label = ~STATION_NAME, 
@@ -1511,23 +1537,33 @@ server <- function(input, output, session) {
   ###################################################################################
   
   #Check if real-time data can be downloaded (some stations with realtime dont have data to download)
-  output$rtExists <- reactive({
-    if(is.null(realtime.HYDAT <- realtime_dd(station_number = values$station))){
-      exist <- "No"
-    } else {
-      exist <- "Yes"
+  
+  rt_available <- reactive({
+    withProgress(message = "Checking for real-time data", {
+      realtime.HYDAT <- realtime_dd(station_number = values$station)
+      
+      if(all(is.na(realtime.HYDAT$Value))){
+        exist <- "No"
+      } else {
+        exist <- "Yes"
+      }
+      exist
     }
-    exist
+    )
+  })
+  
+  output$rtExists <- reactive({
+    rt_available()[1]
   })
   
   # Place note in real-time panel section if no real-time data
   output$noRT <- renderText({
-    if(metaData()[9,2]=="No") {
-      paste("*** No real-time data available for this station.")
-    } else if(metaData()[9,2]=="Yes" & is.null(realtime.HYDAT <- realtime_dd(station_number = values$station))) {
-      paste("*** No real-time data available at this time.")
+    is_rt <- as.logical(dplyr::pull(metaData()[9,2]))
+    if(!is_rt) {
+      paste("*** Sorry, no real-time data is available for this station.")
+    } else if(is_rt & rt_available() == "No") {
+      paste("*** Sorry, no real-time is data available at this time.")
     }
-    
   })
   
   # Extract real-time data from weblink and clip to dates
